@@ -1,6 +1,7 @@
 #include "impulse_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cmath>
 
 namespace esphome {
 namespace impulse_cover {
@@ -19,11 +20,11 @@ void ImpulseCover::setup() {
   // Set initial state based on sensors if available
   if (this->open_sensor_ != nullptr && this->close_sensor_ != nullptr) {
     if (this->open_sensor_->state) {
-      this->position = COVER_OPEN;
+      this->position = 1.0f;  // COVER_OPEN
       this->current_operation_ = ImpulseCoverOperation::IDLE;
       this->has_initial_state_ = true;
     } else if (this->close_sensor_->state) {
-      this->position = COVER_CLOSED;
+      this->position = 0.0f;  // COVER_CLOSED
       this->current_operation_ = ImpulseCoverOperation::IDLE;
       this->has_initial_state_ = true;
     }
@@ -140,15 +141,15 @@ void ImpulseCover::control(const cover::CoverCall &call) {
       // Cover is idle - determine action based on current position and command
       switch (command) {
         case cover::COVER_COMMAND_OPEN:
-          if (this->position < COVER_OPEN) {
-            this->target_position_ = COVER_OPEN;
+          if (this->position < 1.0f) {  // COVER_OPEN
+            this->target_position_ = 1.0f;  // COVER_OPEN
             this->start_direction(cover::COVER_OPERATION_OPENING);
           }
           break;
           
         case cover::COVER_COMMAND_CLOSE:
-          if (this->position > COVER_CLOSED) {
-            this->target_position_ = COVER_CLOSED;
+          if (this->position > 0.0f) {  // COVER_CLOSED
+            this->target_position_ = 0.0f;  // COVER_CLOSED
             this->start_direction(cover::COVER_OPERATION_CLOSING);
           }
           break;
@@ -156,10 +157,10 @@ void ImpulseCover::control(const cover::CoverCall &call) {
         case cover::COVER_COMMAND_TOGGLE:
           // Toggle logic: open if closed, close if open, stop if moving
           if (this->position <= 0.1f) {  // Closed
-            this->target_position_ = COVER_OPEN;
+            this->target_position_ = 1.0f;  // COVER_OPEN
             this->start_direction(cover::COVER_OPERATION_OPENING);
           } else {  // Open or partially open
-            this->target_position_ = COVER_CLOSED;
+            this->target_position_ = 0.0f;  // COVER_CLOSED
             this->start_direction(cover::COVER_OPERATION_CLOSING);
           }
           break;
@@ -284,18 +285,18 @@ void ImpulseCover::handle_endstop() {
   // Check if we hit an endstop
   if (at_open && this->current_operation_ == ImpulseCoverOperation::OPENING) {
     ESP_LOGD(TAG, "Reached open endstop");
-    this->position = COVER_OPEN;
+    this->position = 1.0f;  // COVER_OPEN
     this->stop_movement();
   } else if (at_closed && this->current_operation_ == ImpulseCoverOperation::CLOSING) {
     ESP_LOGD(TAG, "Reached close endstop");
-    this->position = COVER_CLOSED;
+    this->position = 0.0f;  // COVER_CLOSED
     this->stop_movement();
   }
 }
 
 bool ImpulseCover::is_at_target_position() {
   const float tolerance = 0.01f;  // 1% tolerance
-  return abs(this->position - this->target_position_) < tolerance;
+  return fabs(this->position - this->target_position_) < tolerance;
 }
 
 void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
@@ -303,7 +304,7 @@ void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   if (sensor != nullptr) {
     sensor->add_on_state_callback([this](bool state) {
       if (state && this->current_operation_ == ImpulseCoverOperation::OPENING) {
-        this->position = COVER_OPEN;
+        this->position = 1.0f;  // COVER_OPEN
         this->stop_movement();
       }
     });
@@ -315,7 +316,7 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   if (sensor != nullptr) {
     sensor->add_on_state_callback([this](bool state) {
       if (state && this->current_operation_ == ImpulseCoverOperation::CLOSING) {
-        this->position = COVER_CLOSED;
+        this->position = 0.0f;  // COVER_CLOSED
         this->stop_movement();
       }
     });

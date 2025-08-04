@@ -8,16 +8,15 @@ from esphome.const import (
     CONF_OUTPUT,
 )
 
-DEPENDENCIES = ["cover"]
-
-CONF_PULSE_DELAY = "pulse_delay"
-CONF_SAFETY_TIMEOUT = "safety_timeout"
-CONF_SAFETY_MAX_CYCLES = "safety_max_cycles"
-CONF_OPEN_SENSOR = "open_sensor"
-CONF_CLOSE_SENSOR = "close_sensor"
-
-impulse_cover_ns = cg.esphome_ns.namespace("impulse_cover")
-ImpulseCover = impulse_cover_ns.class_("ImpulseCover", cover.Cover, cg.Component)
+from . import (
+    impulse_cover_ns,
+    ImpulseCover,
+    CONF_PULSE_DELAY,
+    CONF_SAFETY_TIMEOUT,
+    CONF_SAFETY_MAX_CYCLES,
+    CONF_OPEN_SENSOR,
+    CONF_CLOSE_SENSOR,
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({
