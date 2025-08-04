@@ -21,11 +21,9 @@ jobs:
     strategy:
       matrix:
         config:
-          - simple-test.yaml
-          - test-config.yaml
-          - advanced-test.yaml
-          - clean-test.yaml
-          - fresh-test.yaml
+          - examples/basic-configuration.yaml
+          - examples/with-sensors.yaml
+          - examples/advanced-test.yaml
     
     steps:
     - name: Checkout code
@@ -87,8 +85,8 @@ jobs:
         
     - name: Compile simple configuration
       run: |
-        echo "Compiling simple-test.yaml..."
-        esphome compile simple-test.yaml --no-logs
+        echo "Compiling examples/basic-configuration.yaml..."
+        esphome compile examples/basic-configuration.yaml --no-logs
 
   code-quality:
     name: Code Quality Checks
