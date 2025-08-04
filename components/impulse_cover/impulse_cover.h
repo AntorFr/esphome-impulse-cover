@@ -72,6 +72,10 @@ class ImpulseCover : public cover::Cover, public Component {
   float target_position_{0};
   bool has_initial_state_{false};
   uint32_t last_position_update_{0};
+  
+  // Public accessors for triggers
+  ImpulseCoverOperation get_current_operation() const { return current_operation_; }
+  bool is_safety_triggered() const { return safety_triggered_; }
 };
 
 // Automation triggers
@@ -79,7 +83,7 @@ class ImpulseCoverOpenTrigger : public Trigger<> {
  public:
   explicit ImpulseCoverOpenTrigger(ImpulseCover *parent) {
     parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_OPENING) {
+      if (parent->get_current_operation() == ImpulseCoverOperation::OPENING) {
         this->trigger();
       }
     });
@@ -90,7 +94,7 @@ class ImpulseCoverCloseTrigger : public Trigger<> {
  public:
   explicit ImpulseCoverCloseTrigger(ImpulseCover *parent) {
     parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_CLOSING) {
+      if (parent->get_current_operation() == ImpulseCoverOperation::CLOSING) {
         this->trigger();
       }
     });
@@ -101,7 +105,7 @@ class ImpulseCoverIdleTrigger : public Trigger<> {
  public:
   explicit ImpulseCoverIdleTrigger(ImpulseCover *parent) {
     parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_IDLE) {
+      if (parent->get_current_operation() == ImpulseCoverOperation::IDLE) {
         this->trigger();
       }
     });
@@ -113,7 +117,7 @@ class ImpulseCoverSafetyTrigger : public Trigger<> {
   explicit ImpulseCoverSafetyTrigger(ImpulseCover *parent) : parent_(parent) {}
   
   void check_and_trigger() {
-    if (this->parent_->safety_triggered_) {
+    if (this->parent_->is_safety_triggered()) {
       this->trigger();
     }
   }
