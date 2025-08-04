@@ -19,11 +19,14 @@ void ImpulseCover::setup() {
   
   // Set initial state based on sensors if available
   if (this->open_sensor_ != nullptr && this->close_sensor_ != nullptr) {
-    if (this->open_sensor_->state) {
+    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
+    
+    if (open_state) {
       this->position = 1.0f;  // COVER_OPEN
       this->current_operation_ = ImpulseCoverOperation::IDLE;
       this->has_initial_state_ = true;
-    } else if (this->close_sensor_->state) {
+    } else if (close_state) {
       this->position = 0.0f;  // COVER_CLOSED
       this->current_operation_ = ImpulseCoverOperation::IDLE;
       this->has_initial_state_ = true;
@@ -74,9 +77,11 @@ void ImpulseCover::dump_config() {
   
   if (this->open_sensor_) {
     ESP_LOGCONFIG(TAG, "  Open Sensor: '%s'", this->open_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Open Sensor Inverted: %s", this->open_sensor_inverted_ ? "YES" : "NO");
   }
   if (this->close_sensor_) {
     ESP_LOGCONFIG(TAG, "  Close Sensor: '%s'", this->close_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Close Sensor Inverted: %s", this->close_sensor_inverted_ ? "YES" : "NO");
   }
 }
 
@@ -275,11 +280,11 @@ void ImpulseCover::handle_endstop() {
   bool at_closed = false;
   
   if (this->open_sensor_ != nullptr) {
-    at_open = this->open_sensor_->state;
+    at_open = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
   }
   
   if (this->close_sensor_ != nullptr) {
-    at_closed = this->close_sensor_->state;
+    at_closed = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
   }
   
   // Check if we hit an endstop
@@ -303,7 +308,8 @@ void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   this->open_sensor_ = sensor;
   if (sensor != nullptr) {
     sensor->add_on_state_callback([this](bool state) {
-      if (state && this->current_operation_ == ImpulseCoverOperation::OPENING) {
+      bool actual_state = this->open_sensor_inverted_ ? !state : state;
+      if (actual_state && this->current_operation_ == ImpulseCoverOperation::OPENING) {
         this->position = 1.0f;  // COVER_OPEN
         this->stop_movement();
       }
@@ -315,7 +321,8 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   this->close_sensor_ = sensor;
   if (sensor != nullptr) {
     sensor->add_on_state_callback([this](bool state) {
-      if (state && this->current_operation_ == ImpulseCoverOperation::CLOSING) {
+      bool actual_state = this->close_sensor_inverted_ ? !state : state;
+      if (actual_state && this->current_operation_ == ImpulseCoverOperation::CLOSING) {
         this->position = 0.0f;  // COVER_CLOSED
         this->stop_movement();
       }

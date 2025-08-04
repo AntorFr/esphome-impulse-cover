@@ -69,6 +69,10 @@ cover:
     open_sensor: gate_open_sensor
     close_sensor: gate_close_sensor
     
+    # Optional: Sensor logic inversion (for different sensor types)
+    open_sensor_inverted: false     # Set to true for active LOW sensors  
+    close_sensor_inverted: false    # Set to true for active LOW sensors
+    
     # Optional: Automation triggers
     on_open:
       - logger.log: "Gate is opening"
@@ -85,6 +89,32 @@ cover:
           data:
             device: "main_gate"
             message: "Safety mode activated"
+```
+
+### Endstop Sensors
+
+Optional binary sensors can be configured to detect when the cover reaches its fully open or closed positions:
+
+#### Sensor Types
+- **Reed switches** with magnets
+- **Limit switches** (mechanical)
+- **Optical sensors** (photoelectric)
+- **Hall effect sensors**
+
+#### Sensor Logic
+Different sensors have different logic levels:
+- **Active HIGH**: Sensor outputs HIGH (3.3V) when triggered
+- **Active LOW**: Sensor outputs LOW (0V) when triggered  
+
+Use the inversion options to match your sensor type:
+```yaml
+cover:
+  - platform: impulse_cover
+    # ... other config
+    open_sensor: my_open_sensor
+    close_sensor: my_close_sensor
+    open_sensor_inverted: true    # For active LOW open sensor
+    close_sensor_inverted: false  # For active HIGH close sensor
 ```
 
 ## How It Works
@@ -131,6 +161,8 @@ When changing direction mid-movement:
 | `safety_max_cycles` | Integer | 5 | Max cycles before safety trigger |
 | `open_sensor` | Binary Sensor | Optional | Sensor for open position |
 | `close_sensor` | Binary Sensor | Optional | Sensor for closed position |
+| `open_sensor_inverted` | Boolean | false | Invert open sensor logic (for active LOW) |
+| `close_sensor_inverted` | Boolean | false | Invert close sensor logic (for active LOW) |
 
 ### Automation Triggers
 

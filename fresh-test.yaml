@@ -1,0 +1,44 @@
+esphome:
+  name: fresh-test
+  friendly_name: Fresh Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "test-network"
+  password: "test1234"
+  ap:
+    ssid: "Fresh Test Fallback"
+    password: "test1234"
+
+captive_portal:
+
+external_components:
+  - source: 
+      type: local
+      path: components
+    components: [ impulse_cover ]
+
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: fresh_gate_output
+
+cover:
+  - platform: impulse_cover
+    name: "Fresh Gate"
+    id: fresh_gate
+    output: fresh_gate_output
+    open_duration: 15s
+    close_duration: 15s

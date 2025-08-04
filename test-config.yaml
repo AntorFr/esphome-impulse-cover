@@ -15,6 +15,7 @@ logger:
 api:
 
 ota:
+  - platform: esphome
 
 wifi:
   ssid: "test-network"
@@ -79,3 +80,7 @@ cover:
     # Optional: Endstop sensors
     open_sensor: test_gate_open
     close_sensor: test_gate_close
+    
+    # Optional: Sensor logic inversion  
+    open_sensor_inverted: false    # Set to true if sensor is active LOW
+    close_sensor_inverted: false   # Set to true if sensor is active LOW

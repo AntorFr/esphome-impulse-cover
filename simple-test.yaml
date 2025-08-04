@@ -9,7 +9,9 @@ esp32:
 
 logger:
 api:
+
 ota:
+  - platform: esphome
 
 wifi:
   ssid: "test-network"
@@ -33,6 +35,22 @@ output:
     pin: GPIO12  # Using a non-strapping pin
     id: simple_output
 
+# Example sensors (commented out for minimal test)
+# binary_sensor:
+#   - platform: gpio
+#     pin: 
+#       number: GPIO14
+#       mode: INPUT_PULLUP
+#     name: "Gate Open Sensor"
+#     id: gate_open_sensor
+#     
+#   - platform: gpio
+#     pin:
+#       number: GPIO27
+#       mode: INPUT_PULLUP  
+#     name: "Gate Close Sensor"
+#     id: gate_close_sensor
+
 cover:
   - platform: impulse_cover
     name: "Simple Gate"
@@ -40,3 +58,9 @@ cover:
     output: simple_output
     open_duration: 10s
     close_duration: 10s
+    
+    # Optional sensor configuration (commented for minimal test)
+    # open_sensor: gate_open_sensor
+    # close_sensor: gate_close_sensor
+    # open_sensor_inverted: true    # Example: active LOW sensor
+    # close_sensor_inverted: false  # Example: active HIGH sensor

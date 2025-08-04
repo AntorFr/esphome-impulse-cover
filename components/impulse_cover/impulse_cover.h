@@ -31,6 +31,8 @@ class ImpulseCover : public cover::Cover, public Component {
   void set_output(output::BinaryOutput *output) { this->output_ = output; }
   void set_open_sensor(binary_sensor::BinarySensor *sensor);
   void set_close_sensor(binary_sensor::BinarySensor *sensor);
+  void set_open_sensor_inverted(bool inverted) { this->open_sensor_inverted_ = inverted; }
+  void set_close_sensor_inverted(bool inverted) { this->close_sensor_inverted_ = inverted; }
   
   // Override cover traits
   cover::CoverTraits get_traits() override;
@@ -56,6 +58,8 @@ class ImpulseCover : public cover::Cover, public Component {
   output::BinaryOutput *output_{nullptr};
   binary_sensor::BinarySensor *open_sensor_{nullptr};
   binary_sensor::BinarySensor *close_sensor_{nullptr};
+  bool open_sensor_inverted_{false};
+  bool close_sensor_inverted_{false};
   
   // State tracking
   ImpulseCoverOperation current_operation_{ImpulseCoverOperation::IDLE};
