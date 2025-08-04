@@ -1,0 +1,96 @@
+# Quick Start Configuration
+
+# Minimal configuration for basic gate/garage door
+esphome:
+  name: gate-controller
+
+esp32:
+  board: esp32dev
+
+# Network setup  
+wifi:
+  ssid: "Your-WiFi"
+  password: "Your-Password"
+
+api:
+ota:
+logger:
+
+# Import the component
+external_components:
+  - source: github://yourusername/esphome-impulse-cover
+    components: [ impulse_cover ]
+
+# GPIO for pulse output
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: gate_output
+
+# Main cover configuration
+cover:
+  - platform: impulse_cover
+    name: "Gate"
+    output: gate_output
+    open_duration: 15s    # Adjust to your gate's timing
+    close_duration: 15s   # Adjust to your gate's timing
+
+---
+
+# Configuration with endstop sensors
+esphome:
+  name: advanced-gate
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: "Your-WiFi" 
+  password: "Your-Password"
+
+api:
+ota:
+logger:
+
+external_components:
+  - source: github://yourusername/esphome-impulse-cover
+    components: [ impulse_cover ]
+
+# Outputs
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: gate_output
+
+# Endstop sensors
+binary_sensor:
+  - platform: gpio
+    pin: GPIO4
+    name: "Gate Open"
+    id: gate_open
+    
+  - platform: gpio  
+    pin: GPIO5
+    name: "Gate Closed"
+    id: gate_closed
+
+# Advanced cover with sensors
+cover:
+  - platform: impulse_cover
+    name: "Smart Gate"
+    output: gate_output
+    open_duration: 18s
+    close_duration: 16s
+    
+    # Safety settings
+    pulse_delay: 750ms
+    safety_timeout: 45s
+    safety_max_cycles: 3
+    
+    # Endstop sensors
+    open_sensor: gate_open
+    close_sensor: gate_closed
+    
+    # Automation
+    on_safety:
+      - logger.log: "Gate safety activated!"

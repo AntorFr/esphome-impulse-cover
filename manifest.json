@@ -1,0 +1,67 @@
+{
+  "name": "Impulse Cover",
+  "description": "ESPHome component for single-pulse cover control systems",
+  "version": "1.0.0",
+  "author": "ESPHome Community",
+  "license": "MIT",
+  "repository": "https://github.com/yourusername/esphome-impulse-cover",
+  "documentation": "https://github.com/yourusername/esphome-impulse-cover/blob/main/README.md",
+  "dependencies": {
+    "esphome": ">=2023.12.0"
+  },
+  "components": [
+    "impulse_cover"
+  ],
+  "platforms": [
+    "esp32",
+    "esp8266"
+  ],
+  "keywords": [
+    "cover",
+    "gate",
+    "garage",
+    "impulse",
+    "single-pulse",
+    "automation"
+  ],
+  "codeowners": [
+    "@yourusername"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "output": {
+        "description": "GPIO output for sending pulses"
+      },
+      "open_duration": {
+        "description": "Time duration to fully open the cover"
+      },
+      "close_duration": {
+        "description": "Time duration to fully close the cover"
+      },
+      "pulse_delay": {
+        "description": "Delay between stop and reverse pulses",
+        "default": "500ms"
+      },
+      "safety_timeout": {
+        "description": "Maximum time for any single operation", 
+        "default": "60s"
+      },
+      "safety_max_cycles": {
+        "description": "Maximum rapid direction changes allowed",
+        "default": 5
+      },
+      "open_sensor": {
+        "description": "Optional binary sensor for open position detection"
+      },
+      "close_sensor": {
+        "description": "Optional binary sensor for close position detection"
+      }
+    },
+    "required": [
+      "output",
+      "open_duration", 
+      "close_duration"
+    ]
+  }
+}

@@ -1,0 +1,186 @@
+# Example configuration for ESPHome Impulse Cover Component
+
+esphome:
+  name: gate-controller
+  friendly_name: Gate Controller
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "your-encryption-key"
+
+ota:
+  password: "your-ota-password"
+
+wifi:
+  ssid: "Your-WiFi-SSID"
+  password: "Your-WiFi-Password"
+  
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Gate-Controller Fallback Hotspot"
+    password: "fallback-password"
+
+captive_portal:
+
+# Import the custom component
+external_components:
+  - source: 
+      type: local
+      path: /path/to/esphome-impulse-cover
+    components: [ impulse_cover ]
+
+# GPIO Outputs
+output:
+  # Output for sending pulses to gate controller
+  - platform: gpio
+    pin: GPIO2
+    id: gate_pulse_output
+  
+  # LED outputs  
+  - platform: ledc
+    pin: GPIO25
+    id: status_led_red
+  - platform: ledc
+    pin: GPIO26
+    id: status_led_green
+  - platform: ledc
+    pin: GPIO27
+    id: status_led_blue
+
+# Optional: Binary sensors for endstop detection
+binary_sensor:
+  # Gate fully open sensor (magnetic sensor, limit switch, etc.)
+  - platform: gpio
+    pin: 
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Gate Open Sensor"
+    id: gate_open_sensor
+    device_class: opening
+    
+  # Gate fully closed sensor
+  - platform: gpio
+    pin:
+      number: GPIO5  
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Gate Close Sensor"
+    id: gate_close_sensor
+    device_class: opening
+
+# Main cover configuration
+cover:
+  - platform: impulse_cover
+    name: "Main Gate"
+    id: main_gate
+    
+    # Required: Output for sending pulses
+    output: gate_pulse_output
+    
+    # Required: Timing configuration
+    open_duration: 18s      # Time for gate to fully open
+    close_duration: 16s     # Time for gate to fully close
+    
+    # Optional: Safety and pulse timing
+    pulse_delay: 750ms      # Delay between stop and reverse pulses
+    safety_timeout: 45s     # Maximum time for any single operation
+    safety_max_cycles: 3    # Maximum rapid direction changes allowed
+    
+    # Optional: Endstop sensors for accurate positioning
+    open_sensor: gate_open_sensor
+    close_sensor: gate_close_sensor
+    
+    # Optional: Automation triggers
+    on_open:
+      - logger.log: "Gate opening started"
+      - light.turn_on: 
+          id: status_led
+          brightness: 50%
+          
+    on_close:
+      - logger.log: "Gate closing started"  
+      - light.turn_on:
+          id: status_led
+          brightness: 50%
+          
+    on_idle:
+      - logger.log: "Gate movement stopped"
+      - light.turn_off: status_led
+      
+    on_safety:
+      - logger.log: 
+          format: "SAFETY: Gate safety mode activated!"
+          level: WARN
+      - light.turn_on:
+          id: status_led
+          red: 100%
+          green: 0%
+          blue: 0%
+          brightness: 100%
+      # Send alert to Home Assistant
+      - homeassistant.event:
+          event: esphome.gate_safety_alert
+          data:
+            device: "main_gate"
+            location: "front_entrance"
+            message: "Gate safety mode activated - check for obstructions"
+
+# Optional: Status LED
+light:
+  - platform: rgb
+    name: "Gate Status LED"
+    id: status_led
+    red: status_led_red
+    green: status_led_green
+    blue: status_led_blue
+
+# Optional: Physical button for manual control
+button:
+  - platform: template
+    name: "Gate Toggle"
+    on_press:
+      - cover.toggle: main_gate
+
+# Optional: Sensors for monitoring
+sensor:
+  - platform: template
+    name: "Gate Position"
+    lambda: |-
+      return id(main_gate).position * 100.0;
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    update_interval: 1s
+
+# Optional: Text sensors for status
+text_sensor:
+  - platform: template
+    name: "Gate Status"
+    lambda: |-
+      if (id(main_gate).current_operation == cover::COVER_OPERATION_OPENING) {
+        return {"Opening"};
+      } else if (id(main_gate).current_operation == cover::COVER_OPERATION_CLOSING) {
+        return {"Closing"};
+      } else {
+        return {"Idle"};
+      }
+    update_interval: 1s
+
+# Optional: Switch to reset safety mode manually
+switch:
+  - platform: template
+    name: "Reset Gate Safety"
+    turn_on_action:
+      - lambda: |-
+          // Reset safety mode if needed
+          // This would require adding a public method to the component
+          ESP_LOGI("main", "Manual safety reset requested");
