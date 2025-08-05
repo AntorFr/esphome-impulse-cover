@@ -81,7 +81,7 @@ cover:
     open_sensor_inverted: false   # Reed switch is active HIGH
     close_sensor_inverted: true   # Limit switch is active LOW (pressed = LOW)
 
-    # Advanced automation triggers
+    # Advanced automation triggers (using standard ESPHome cover triggers)
     on_open:
       - logger.log: "Gate opening sequence started"
       - light.turn_on: gate_status_led
@@ -91,22 +91,13 @@ cover:
             action: opening
             device: "{{ device_name }}"
 
-    on_close:
-      - logger.log: "Gate closing sequence started"
-      - light.turn_on: gate_status_led
-      - homeassistant.event:
-          event: esphome.gate_event
-          data:
-            action: closing
-            device: "{{ device_name }}"
-
-    on_idle:
-      - logger.log: "Gate movement completed"
+    on_closed:
+      - logger.log: "Gate closing sequence completed"
       - light.turn_off: gate_status_led
       - homeassistant.event:
           event: esphome.gate_event
           data:
-            action: idle
+            action: closed
             device: "{{ device_name }}"
 
     on_safety:

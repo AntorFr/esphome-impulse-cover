@@ -380,7 +380,7 @@ void ImpulseCover::add_on_idle_trigger(Trigger<> *trigger) {
   this->on_idle_triggers_.push_back(trigger);
 }
 
-void ImpulseCover::add_on_safety_trigger(Trigger<> *trigger) {
+void ImpulseCover::add_on_safety_trigger(SafetyTrigger *trigger) {
   this->on_safety_triggers_.push_back(trigger);
 }
 
