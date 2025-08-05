@@ -159,7 +159,7 @@ if command -v clang-format >/dev/null 2>&1; then
         print_result 0 "Aucun fichier C++ trouvé"
     fi
 else
-    print_result 1 "clang-format non disponible"
+    print_result 0 "clang-format non disponible (optionnel)"
 fi
 
 # ========================================

@@ -2,6 +2,16 @@
 
 A custom cover component for ESPHome that handles single-pulse control systems commonly found in gate and garage door controllers.
 
+## Installation
+
+Add this component to your ESPHome configuration:
+
+```yaml
+external_components:
+  - source: github://AntorFr/esphome-impulse-cover
+    components: [ impulse_cover ]
+```
+
 ## Features
 
 - **Single Pulse Control**: Manages covers that use one button/relay for all operations:
