@@ -47,7 +47,7 @@ external_components:
 
 ```yaml
 external_components:
-  - source: github://yourusername/esphome-impulse-cover
+  - source: github://AntorFr/esphome-impulse-cover
     components: [ impulse_cover ]
 
 # Define the output for pulses
