@@ -6,9 +6,11 @@
 #include "esphome/components/output/binary_output.h"
 
 namespace esphome {
+#ifdef USE_BINARY_SENSOR
 namespace binary_sensor {
 class BinarySensor;
 }
+#endif
 namespace impulse_cover {
 
 enum class ImpulseCoverOperation {
@@ -31,6 +33,12 @@ class ImpulseCover : public cover::Cover, public Component {
   void set_safety_max_cycles(uint8_t cycles) { this->safety_max_cycles_ = cycles; }
   
   void set_output(output::BinaryOutput *output) { this->output_ = output; }
+#ifdef USE_BINARY_SENSOR
+  void set_open_sensor(binary_sensor::BinarySensor *sensor);
+  void set_close_sensor(binary_sensor::BinarySensor *sensor);
+  void set_open_sensor_inverted(bool inverted) { this->open_sensor_inverted_ = inverted; }
+  void set_close_sensor_inverted(bool inverted) { this->close_sensor_inverted_ = inverted; }
+#endif
   
   // Override cover traits
   cover::CoverTraits get_traits() override;
@@ -44,7 +52,9 @@ class ImpulseCover : public cover::Cover, public Component {
   void send_pulse();
   void update_position();
   void check_safety();
+#ifdef USE_BINARY_SENSOR
   void handle_endstop();
+#endif
   bool is_at_target_position();
   
   // Configuration
@@ -56,6 +66,12 @@ class ImpulseCover : public cover::Cover, public Component {
   
   // Hardware
   output::BinaryOutput *output_{nullptr};
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *open_sensor_{nullptr};
+  binary_sensor::BinarySensor *close_sensor_{nullptr};
+  bool open_sensor_inverted_{false};
+  bool close_sensor_inverted_{false};
+#endif
   
   // State tracking
   ImpulseCoverOperation current_operation_{ImpulseCoverOperation::IDLE};
@@ -70,6 +86,7 @@ class ImpulseCover : public cover::Cover, public Component {
   
   // Position calculation
   float target_position_{0};
+  float start_position_{0};
   bool has_initial_state_{false};
   uint32_t last_position_update_{0};
   
