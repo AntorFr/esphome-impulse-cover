@@ -1,0 +1,150 @@
+name: Maintenance
+
+on:
+  schedule:
+    # Run weekly on Sundays at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  ESPHOME_VERSION: "2025.7.4"
+
+jobs:
+  dependency-check:
+    name: Dependency Updates Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Check ESPHome version
+        run: |
+          echo "Current ESPHome version: ${{ env.ESPHOME_VERSION }}"
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+          esphome version
+
+      - name: Install latest ESPHome and compare
+        run: |
+          pip install --upgrade esphome
+          LATEST_VERSION=$(pip show esphome | grep Version | cut -d' ' -f2)
+          echo "Latest ESPHome version: $LATEST_VERSION"
+          if [ "$LATEST_VERSION" != "${{ env.ESPHOME_VERSION }}" ]; then
+            echo "::warning::ESPHome version $LATEST_VERSION available (current: ${{ env.ESPHOME_VERSION }})"
+          fi
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          pip install safety bandit
+
+      - name: Run safety check
+        run: |
+          echo "Running safety check..."
+          safety check --json > safety-report.json || true
+          if [ -s safety-report.json ]; then
+            echo "::warning::Security vulnerabilities found, see safety-report.json"
+            cat safety-report.json
+          else
+            echo "No security vulnerabilities found ✅"
+          fi
+
+      - name: Run bandit security scan
+        run: |
+          echo "Running bandit security scan..."
+          bandit -r components/ -f json -o bandit-report.json || true
+          if [ -f bandit-report.json ]; then
+            echo "Bandit scan completed, check bandit-report.json"
+            cat bandit-report.json
+          fi
+
+  documentation-check:
+    name: Documentation Maintenance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check documentation freshness
+        run: |
+          echo "Checking documentation freshness..."
+
+          # Check if README has been updated recently
+          LAST_README_UPDATE=$(git log -1 --format="%cd" --date=iso README.md)
+          echo "README last updated: $LAST_README_UPDATE"
+
+          # Check if CHANGELOG has been updated recently
+          if [ -f CHANGELOG.md ]; then
+            LAST_CHANGELOG_UPDATE=$(git log -1 --format="%cd" --date=iso CHANGELOG.md)
+            echo "CHANGELOG last updated: $LAST_CHANGELOG_UPDATE"
+          fi
+
+          # Check for TODO or FIXME comments
+          echo "Checking for TODO/FIXME comments..."
+          grep -r "TODO\|FIXME" components/ examples/ docs/ || echo "No TODO/FIXME found ✅"
+
+      - name: Validate example configurations
+        run: |
+          echo "Validating example configurations..."
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+          for config in examples/*.yaml; do
+            echo "Validating $config..."
+            esphome config "$config"
+          done
+
+  cleanup-tasks:
+    name: Repository Cleanup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for large files
+        run: |
+          echo "Checking for large files (>1MB)..."
+          find . -type f -size +1M -not -path './.git/*' | while read file; do
+            echo "::warning::Large file found: $file ($(du -h "$file" | cut -f1))"
+          done || echo "No large files found ✅"
+
+      - name: Check for unused files
+        run: |
+          echo "Checking for potentially unused files..."
+
+          # Check for .pyc files that shouldn't be committed
+          find . -name "*.pyc" -not -path './.git/*' | while read file; do
+            echo "::warning::Python bytecode file found: $file"
+          done || echo "No .pyc files found ✅"
+
+          # Check for temporary files
+          find . -name "*~" -o -name ".DS_Store" -not -path './.git/*' | while read file; do
+            echo "::warning::Temporary file found: $file"
+          done || echo "No temporary files found ✅"
+
+      - name: Repository statistics
+        run: |
+          echo "Repository statistics:"
+          echo "- Total files: $(find . -type f -not -path './.git/*' | wc -l)"
+          echo "- Python files: $(find . -name "*.py" -not -path './.git/*' | wc -l)"
+          echo "- YAML files: $(find . -name "*.yaml" -o -name "*.yml" -not -path './.git/*' | wc -l)"
+          echo "- Documentation files: $(find . -name "*.md" -not -path './.git/*' | wc -l)"
+          echo "- C++ files: $(find . -name "*.h" -o -name "*.cpp" -not -path './.git/*' | wc -l)"

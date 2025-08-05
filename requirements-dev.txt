@@ -1,0 +1,7 @@
+# Dépendances pour le développement et les tests de qualité
+esphome>=2025.7.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+yamllint>=1.32.0
+bandit[toml]>=1.7.5

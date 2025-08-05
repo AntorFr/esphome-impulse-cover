@@ -1,0 +1,47 @@
+# Quick Start Configuration
+
+# Minimal configuration for basic gate/garage door
+esphome:
+  name: gate-controller
+
+esp32:
+  board: esp32dev
+
+# Network setup
+wifi:
+  ssid: "Your-WiFi"
+  password: "Your-Password"
+
+api:
+ota:
+  - platform: esphome
+logger:
+
+# Import the component
+external_components:
+  - source: github://AntorFR/esphome-impulse-cover
+    components: [ impulse_cover ]
+
+# GPIO for pulse output
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: gate_output
+
+# Main cover configuration
+cover:
+  - platform: impulse_cover
+    name: "Gate"
+    output: gate_output
+    open_duration: 15s    # Adjust to your gate's timing
+    close_duration: 15s   # Adjust to your gate's timing
+
+# Optional: Add automation triggers
+# on_open:
+#   - logger.log: "Gate is opening"
+# on_close:
+#   - logger.log: "Gate is closing"
+# on_idle:
+#   - logger.log: "Gate stopped"
+# on_safety:
+#   - logger.log: "Safety triggered!"

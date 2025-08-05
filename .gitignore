@@ -31,6 +31,7 @@ Thumbs.db
 *.egg-info/
 dist/
 venv/
+.venv/
 env/
 
 # Logs

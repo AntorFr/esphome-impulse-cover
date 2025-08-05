@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    commit-message:
+      prefix: "ci:"
+      prefix-development: "ci:"
+    reviewers:
+      - "AntorFR"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Enable version updates for Python (if we have requirements.txt)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+    commit-message:
+      prefix: "deps:"
+      prefix-development: "deps:"
+    reviewers:
+      - "AntorFR"
+    labels:
+      - "dependencies"
+      - "python"
+    # Ignore major version updates for ESPHome to maintain compatibility
+    ignore:
+      - dependency-name: "esphome"
+        update-types: ["version-update:semver-major"]

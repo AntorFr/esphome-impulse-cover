@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta1] - 2025-08-05
+
+### Added - CI/CD Infrastructure
+- Comprehensive CI/CD pipeline similar to HeishaMon project
+- Multi-platform automated testing (ESP8266/ESP32)
+- Performance and compatibility testing workflows
+- Automated maintenance and dependency management
+- GitHub issue templates for better community support
+- Dependabot configuration for automatic dependency updates
+- Enhanced pull request template with detailed checklists
+- Automated release workflow with asset generation
+- Security scanning and vulnerability detection
+- Code quality checks with multiple linters (Black, flake8, pylint, clang-tidy)
+- Documentation validation and freshness checking
+- Weekly maintenance automation
+- Memory usage analysis and stress testing
+
+### Enhanced - Test Infrastructure
+- Quality check workflow with better error handling
+- Test script integration in CI pipeline (`test-impulse-cover.sh`)
+- Repository settings configuration
+- Code formatting and style enforcement
+- Comprehensive example validation
+
+### Fixed - YAML Formatting and Configuration
+- Removed trailing spaces from all example configuration files
+- Fixed YAML syntax validation for all workflow files
+- Added missing `.venv` pattern to .gitignore
+- Corrected indentation issues in GitHub Actions workflows
+- Ensured all YAML files pass yamllint validation
+
+### Fixed - Binary Sensor and Partial Opening
+- Restored missing binary sensor functionality with conditional compilation
+- Added `#ifdef USE_BINARY_SENSOR` for backward compatibility
+- Implemented configurable `open_duration` and `close_duration` parameters
+- Enhanced position calculation with `start_position_` tracking
+- Improved partial opening accuracy and control
+
 ## [1.0.0] - 2025-01-01
 
 ### Added

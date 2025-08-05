@@ -1,0 +1,167 @@
+{
+    "folders": [
+        {
+            "name": "ESPHome Impulse Cover",
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.defaultInterpreterPath": "./venv/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.linting.mypyEnabled": false,
+        "python.formatting.provider": "none",
+        "[python]": {
+            "editor.formatOnSave": true,
+            "editor.codeActionsOnSave": {
+                "source.organizeImports": "explicit"
+            }
+        },
+        "files.associations": {
+            "*.yaml": "yaml",
+            "*.yml": "yaml"
+        },
+        "yaml.validate": true,
+        "yaml.format.enable": true,
+        "files.eol": "\n",
+        "editor.insertFinalNewline": true,
+        "editor.trimAutoWhitespace": true,
+        "files.exclude": {
+            "**/.git": true,
+            "**/.svn": true,
+            "**/.hg": true,
+            "**/CVS": true,
+            "**/.DS_Store": true,
+            "**/Thumbs.db": true,
+            "**/__pycache__": true,
+            "**/.pytest_cache": true,
+            "**/.mypy_cache": true,
+            "**/node_modules": true,
+            "**/.venv": true,
+            "**/venv": true,
+            "**/build": true,
+            "**/dist": true,
+            "**/*.egg-info": true
+        },
+        "search.exclude": {
+            "**/node_modules": true,
+            "**/bower_components": true,
+            "**/*.code-search": true,
+            "**/.venv": true,
+            "**/venv": true,
+            "**/build": true,
+            "**/dist": true
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.pylint",
+            "ms-python.black-formatter",
+            "ms-python.isort",
+            "redhat.vscode-yaml",
+            "esphome.esphome-vscode",
+            "eamodio.gitlens",
+            "github.vscode-pull-request-github",
+            "ms-python.pylance",
+            "ms-vscode.test-adapter-converter",
+            "hbenl.vscode-test-explorer",
+            "ms-python.vscode-pylance",
+            "ms-vscode-remote.remote-containers",
+            "github.vscode-github-actions"
+        ]
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Run Tests",
+                "type": "shell",
+                "command": "./test-impulse-cover.sh",
+                "group": "test",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Run Tests with Compilation",
+                "type": "shell",
+                "command": "./test-impulse-cover.sh",
+                "args": ["--compile"],
+                "group": "test",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Format Python Code",
+                "type": "shell",
+                "command": "black",
+                "args": ["components/", "examples/"],
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "silent",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Lint Python Code",
+                "type": "shell",
+                "command": "flake8",
+                "args": ["components/", "examples/"],
+                "group": "test",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "ESPHome Dashboard",
+                "type": "shell",
+                "command": "esphome",
+                "args": ["dashboard", "examples/"],
+                "group": "build",
+                "isBackground": true,
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            }
+        ]
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "ESPHome Compile Config",
+                "type": "debugpy",
+                "request": "launch",
+                "module": "esphome",
+                "args": ["compile", "${workspaceFolder}/examples/basic-configuration.yaml"],
+                "console": "integratedTerminal",
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}"
+                }
+            }
+        ]
+    }
+}

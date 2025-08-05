@@ -1,0 +1,99 @@
+name: Question/Support
+description: Ask a question or get support
+title: "[QUESTION] "
+labels: ["question", "support"]
+assignees:
+  - AntorFR
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help? Please provide as much detail as possible so we can assist you.
+
+  - type: checkboxes
+    id: pre-checks
+    attributes:
+      label: Pre-flight Checks
+      description: Please confirm you have completed these steps
+      options:
+        - label: I have read the [README.md](../README.md) documentation
+          required: true
+        - label: I have checked the [docs/](../docs/) directory for guides
+          required: true
+        - label: I have searched existing issues for similar questions
+          required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: How do I configure...?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      description: What is your question about?
+      options:
+        - Installation and setup
+        - Configuration
+        - Hardware compatibility
+        - Partial opening feature
+        - Binary sensors
+        - Troubleshooting
+        - ESPHome integration
+        - Home Assistant integration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-tried
+    attributes:
+      label: What Have You Tried?
+      description: What steps have you already taken?
+      placeholder: I tried configuring... but...
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Current Configuration
+      description: Your current YAML configuration (if relevant)
+      render: yaml
+      placeholder: |
+        impulse_cover:
+          - platform: impulse_cover
+            name: "My Cover"
+            # ... your config
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform are you using?
+      options:
+        - ESP8266
+        - ESP32
+        - ESP32-C3
+        - ESP32-S2
+        - ESP32-S3
+        - Not applicable
+        - Other
+
+  - type: input
+    id: esphome-version
+    attributes:
+      label: ESPHome Version
+      description: What version of ESPHome?
+      placeholder: "2025.7.4"
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might help
+      placeholder: I'm trying to...

@@ -1,0 +1,62 @@
+{
+  "name": "ESPHome Impulse Cover Development",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-python.isort",
+        "redhat.vscode-yaml",
+        "esphome.esphome-vscode",
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        "ms-python.pylance"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.formatting.provider": "none",
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "python.linting.enabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.pylintEnabled": true,
+        "files.associations": {
+          "*.yaml": "yaml",
+          "*.yml": "yaml"
+        },
+        "yaml.validate": true,
+        "yaml.format.enable": true,
+        "files.eol": "\n",
+        "editor.insertFinalNewline": true,
+        "editor.trimAutoWhitespace": true
+      }
+    }
+  },
+  "postCreateCommand": "pip install esphome==2025.7.4 black flake8 pylint isort yamllint",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "runArgs": ["--privileged"],
+  "forwardPorts": [6052, 6053],
+  "portsAttributes": {
+    "6052": {
+      "label": "ESPHome Dashboard",
+      "onAutoForward": "notify"
+    },
+    "6053": {
+      "label": "ESPHome Logs",
+      "onAutoForward": "silent"
+    }
+  }
+}

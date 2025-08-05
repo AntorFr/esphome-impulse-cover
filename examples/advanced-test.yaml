@@ -1,0 +1,130 @@
+esphome:
+  name: advanced-gate-test
+  friendly_name: Advanced Gate Test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: "test-network"
+  password: "test1234"
+  ap:
+    ssid: "Advanced Gate Fallback"
+    password: "test1234"
+
+captive_portal:
+
+# Import the custom component
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [ impulse_cover ]
+
+# GPIO Outputs
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: gate_output
+  - platform: gpio
+    pin: GPIO25
+    id: status_led_output
+
+# Endstop sensors with different logic types
+binary_sensor:
+  # Example: Reed switch sensor (active HIGH when magnet is present)
+  - platform: gpio
+    pin:
+      number: GPIO14
+      mode: INPUT_PULLUP
+    name: "Gate Open Reed Switch"
+    id: gate_open_reed
+    device_class: opening
+
+  # Example: Limit switch sensor (active LOW when pressed)
+  - platform: gpio
+    pin:
+      number: GPIO27
+      mode: INPUT_PULLUP
+    name: "Gate Close Limit Switch"
+    id: gate_close_limit
+    device_class: opening
+
+cover:
+  - platform: impulse_cover
+    name: "Advanced Gate"
+    id: advanced_gate
+
+    # Required: Output and timing
+    output: gate_output
+    open_duration: 18s
+    close_duration: 16s
+
+    # Optional: Safety and pulse timing
+    pulse_delay: 750ms
+    safety_timeout: 45s
+    safety_max_cycles: 3
+
+    # Endstop sensors with different logic
+    open_sensor: gate_open_reed
+    close_sensor: gate_close_limit
+    open_sensor_inverted: false   # Reed switch is active HIGH
+    close_sensor_inverted: true   # Limit switch is active LOW (pressed = LOW)
+
+    # Advanced automation triggers
+    on_open:
+      - logger.log: "Gate opening sequence started"
+      - light.turn_on: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: opening
+            device: "{{ device_name }}"
+
+    on_close:
+      - logger.log: "Gate closing sequence started"
+      - light.turn_on: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: closing
+            device: "{{ device_name }}"
+
+    on_idle:
+      - logger.log: "Gate movement completed"
+      - light.turn_off: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: idle
+            device: "{{ device_name }}"
+
+    on_safety:
+      - logger.log:
+          level: ERROR
+          format: "Gate SAFETY STOP! Check for obstructions or mechanical issues"
+      - light.turn_on:
+          id: gate_status_led
+          flash_length: 250ms
+      - homeassistant.event:
+          event: esphome.gate_safety
+          data:
+            device: "{{ device_name }}"
+            reason: "Safety timeout or cycle limit exceeded"
+
+# Status LED to show gate state
+light:
+  - platform: binary
+    name: "Gate Status LED"
+    id: gate_status_led
+    output: status_led_output
