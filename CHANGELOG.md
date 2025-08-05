@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta1] - 2025-08-05
+
 ### Added - CI/CD Infrastructure
 - Comprehensive CI/CD pipeline similar to HeishaMon project
 - Multi-platform automated testing (ESP8266/ESP32)
