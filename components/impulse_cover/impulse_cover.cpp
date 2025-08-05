@@ -88,6 +88,14 @@ void ImpulseCover::loop() {
     }
   }
   
+  // Auto-reset safety cycle count after 30 seconds of inactivity
+  if (this->current_operation_ == ImpulseCoverOperation::IDLE && 
+      this->safety_cycle_count_ > 0 && 
+      (now - this->last_direction_change_) > 30000) {
+    ESP_LOGD(TAG, "Auto-resetting safety cycle count after inactivity");
+    this->safety_cycle_count_ = 0;
+  }
+  
   // Only publish state if something changed
   cover::CoverOperation current_operation = this->current_operation_ == ImpulseCoverOperation::IDLE ? 
                                            cover::COVER_OPERATION_IDLE : 
@@ -231,6 +239,10 @@ void ImpulseCover::start_direction(cover::CoverOperation dir) {
   this->pulse_sent_ = false;
   this->start_position_ = this->position;  // Store starting position for correct calculation
   
+  // Increment safety cycle count for rapid direction changes
+  this->safety_cycle_count_++;
+  ESP_LOGD(TAG, "Safety cycle count: %u/%u", this->safety_cycle_count_, this->safety_max_cycles_);
+  
   // Fire appropriate automation triggers
   if (dir == cover::COVER_OPERATION_OPENING) {
     this->fire_on_open_triggers_();
@@ -246,6 +258,13 @@ void ImpulseCover::start_direction(cover::CoverOperation dir) {
 void ImpulseCover::stop_movement() {
   if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
     ESP_LOGD(TAG, "Stopping movement");
+    
+    // Ensure position matches target when stopping
+    if (this->is_at_target_position()) {
+      this->position = this->target_position_;
+      ESP_LOGD(TAG, "Movement completed, position set to target: %.2f", this->position);
+    }
+    
     this->current_operation_ = ImpulseCoverOperation::IDLE;
     this->target_operation_ = ImpulseCoverOperation::IDLE;
     this->pending_reverse_ = false;
@@ -291,18 +310,19 @@ void ImpulseCover::update_position() {
   const uint32_t elapsed = now - this->operation_start_time_;
   
   float progress = 0.0f;
-  float distance = fabs(this->target_position_ - this->start_position_);
   
   if (this->current_operation_ == ImpulseCoverOperation::OPENING) {
     progress = static_cast<float>(elapsed) / static_cast<float>(this->open_duration_);
     progress = std::min(1.0f, progress);  // Clamp to [0,1]
-    this->position = this->start_position_ + (distance * progress);
-    this->position = std::min(1.0f, this->position);  // Clamp to [0,1]
+    // Calculate position based on start and target
+    this->position = this->start_position_ + (this->target_position_ - this->start_position_) * progress;
+    this->position = std::min(1.0f, std::max(0.0f, this->position));  // Clamp to [0,1]
   } else if (this->current_operation_ == ImpulseCoverOperation::CLOSING) {
     progress = static_cast<float>(elapsed) / static_cast<float>(this->close_duration_);
     progress = std::min(1.0f, progress);  // Clamp to [0,1]
-    this->position = this->start_position_ - (distance * progress);
-    this->position = std::max(0.0f, this->position);  // Clamp to [0,1]
+    // Calculate position based on start and target
+    this->position = this->start_position_ + (this->target_position_ - this->start_position_) * progress;
+    this->position = std::min(1.0f, std::max(0.0f, this->position));  // Clamp to [0,1]
   }
   
   this->last_position_update_ = now;
