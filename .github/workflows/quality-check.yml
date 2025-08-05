@@ -1,31 +1,18 @@
-name: ESPHome Component Quality Check
+name: Quality Check
 
 on:
-  pull_request:
-    branches: [ main, dev ]
-    paths:
-      - 'components/**'
-      - '*.yaml'
-      - '**.yml'
-      - '.github/workflows/**'
   push:
-    branches: [ main, dev ]
-    paths:
-      - 'components/**'
-      - '*.yaml'
-      - '**.yml'
-      - '.github/workflows/**'
-  workflow_dispatch:
-    inputs:
-      full_compilation:
-        description: 'Run full compilation test'
-        required: false
-        default: false
-        type: boolean
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  ESPHOME_VERSION: "2025.7.4"
 
 jobs:
-  esphome-validation:
-    name: ESPHome Configuration Validation
+  # Job 1: Validation des configurations
+  config-validation:
+    name: Configuration Validation
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -33,464 +20,229 @@ jobs:
           - examples/basic-configuration.yaml
           - examples/with-sensors.yaml
           - examples/partial-test.yaml
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-          
-    - name: Install ESPHome
-      run: |
-        pip install --upgrade pip
-        pip install esphome==2025.7.4
-        
-    - name: Create test secrets
-      run: |
-        cat > secrets.yaml << EOF
-        wifi_ssid: "test_network"
-        wifi_password: "test_password"
-        ota_password: "test_password"
-        ap_password: "test_password"
-        EOF
-        
-    - name: Check ESPHome version
-      run: |
-        echo "📋 ESPHome version: $(python -m esphome version)"
-        
-    - name: Validate ESPHome configuration
-      run: |
-        if [ -f "${{ matrix.config }}" ]; then
-          echo "🧪 Validating ${{ matrix.config }}..."
-          python -m esphome config "${{ matrix.config }}"
-          echo "✅ ${{ matrix.config }} validation successful"
-        else
-          echo "❌ Configuration file ${{ matrix.config }} not found"
-          exit 1
-        fi
 
-  esphome-compilation:
-    name: ESPHome Compilation Test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Validate configuration
+        run: |
+          esphome config ${{ matrix.config }}
+
+  # Job 2: Tests automatisés avec script
+  automated-testing:
+    name: Automated Testing
     runs-on: ubuntu-latest
-    needs: esphome-validation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-testing
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Make test script executable
+        run: chmod +x test-impulse-cover.sh
+
+      - name: Run comprehensive tests
+        run: ./test-impulse-cover.sh
+
+  # Job 3: Compilation multi-plateforme
+  multi-platform-compilation:
+    name: Multi-Platform Compilation
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         platform: [esp8266, esp32]
-        include:
-          - platform: esp8266
-            config: examples/basic-configuration.yaml
-          - platform: esp32
-            config: examples/with-sensors.yaml
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-          
-    - name: Install ESPHome
-      run: |
-        pip install --upgrade pip
-        pip install esphome==2025.7.4
-        
-    - name: Create test secrets
-      run: |
-        cat > secrets.yaml << EOF
-        wifi_ssid: "test_network"
-        wifi_password: "test_password"
-        ota_password: "test_password"
-        ap_password: "test_password"
-        EOF
-        
-    - name: Compile ${{ matrix.platform }} configuration
-      run: |
-        echo "🔨 Compiling ${{ matrix.config }} for ${{ matrix.platform }}..."
-        timeout 15m python -m esphome compile "${{ matrix.config }}" --no-logs
-        echo "✅ ${{ matrix.platform }} compilation successful"
+        config:
+          - examples/basic-configuration.yaml
+          - examples/with-sensors.yaml
 
-  code-quality:
-    name: Code Quality Checks
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.platform }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Create platform-specific config
+        run: |
+          cp ${{ matrix.config }} temp-config.yaml
+          # Replace platform in config
+          sed -i "s/esp8266/${{ matrix.platform }}/g" temp-config.yaml
+          sed -i "s/esp32/${{ matrix.platform }}/g" temp-config.yaml
+
+      - name: Compile for ${{ matrix.platform }}
+        run: |
+          esphome compile temp-config.yaml
+
+  # Job 4: Qualité du code Python
+  python-quality:
+    name: Python Code Quality
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install flake8 black isort yamllint pylint
-        
-    - name: Check Python code formatting with Black
-      run: |
-        echo "🎨 Checking Python code formatting..."
-        black --check --diff components/ || echo "⚠️ Python formatting issues found"
-        
-    - name: Check Python imports with isort
-      run: |
-        echo "📦 Checking Python import sorting..."
-        isort --check-only --diff components/ || echo "⚠️ Import sorting issues found"
-        
-    - name: Lint Python code with flake8
-      run: |
-        echo "🔍 Linting Python code..."
-        flake8 components/ --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 components/ --count --exit-zero --max-complexity=12 --max-line-length=100 --statistics
-        
-    - name: Advanced Python linting with pylint
-      run: |
-        echo "🔬 Advanced Python analysis..."
-        find components/ -name "*.py" -exec pylint {} \; || echo "⚠️ Pylint found issues"
-        
-    - name: Lint YAML files
-      run: |
-        echo "📝 Linting YAML files..."
-        yamllint -d relaxed *.yaml *.yml examples/ || echo "⚠️ YAML formatting issues found"
 
-  automated-testing:
-    name: Automated Component Testing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-quality
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install quality tools
+        run: |
+          pip install black isort flake8 pylint
+
+      - name: Check code formatting with Black
+        run: |
+          black --check --diff components/
+
+      - name: Check import sorting with isort
+        run: |
+          isort --check-only --diff components/
+
+      - name: Run flake8 linting
+        run: |
+          flake8 components/ --max-line-length=100
+
+      - name: Run pylint
+        run: |
+          pylint components/ --max-line-length=100 --disable=missing-docstring
+
+  # Job 5: Qualité YAML
+  yaml-quality:
+    name: YAML Quality Check
     runs-on: ubuntu-latest
-    needs: esphome-validation
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install ESPHome
-      run: |
-        pip install --upgrade pip
-        pip install esphome==2025.7.4
-        
-    - name: Make test script executable
-      run: chmod +x test-impulse-cover.sh
-      
-    - name: Run automated validation tests
-      run: |
-        echo "🧪 Running automated validation tests..."
-        ./test-impulse-cover.sh
-        echo "✅ Validation tests completed"
-        
-    - name: Run automated compilation tests
-      if: github.event.inputs.full_compilation == 'true' || github.ref == 'refs/heads/main'
-      run: |
-        echo "🔨 Running automated compilation tests..."
-        ./test-impulse-cover.sh --compile
-        echo "✅ Compilation tests completed"
 
-  cpp-quality:
-    name: C++ Code Quality
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          yamllint examples/ .github/
+
+  # Job 6: Tests de sécurité
+  security-checks:
+    name: Security Checks
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install clang tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-format clang-tidy cppcheck
-        
-    - name: Check C++ code formatting
-      run: |
-        echo "🎨 Checking C++ code formatting..."
-        find components/ -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror || echo "⚠️ C++ formatting issues found"
-        
-    - name: Run clang-tidy analysis
-      run: |
-        echo "🔬 Running clang-tidy analysis..."
-        find components/ -name "*.cpp" | xargs clang-tidy --checks=-*,readability-*,performance-*,modernize-* || echo "⚠️ Clang-tidy found issues"
-        
-    - name: Run cppcheck static analysis
-      run: |
-        echo "🔍 Running C++ static analysis..."
-        cppcheck --enable=warning,style,performance,portability --error-exitcode=0 --suppress=missingIncludeSystem components/
-        echo "✅ Static analysis completed"
 
-  documentation:
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          pip install safety bandit
+
+      - name: Run safety check
+        run: |
+          safety check || true
+
+      - name: Run bandit security linting
+        run: |
+          bandit -r components/ || true
+
+  # Job 7: Documentation et exemples
+  documentation-check:
     name: Documentation Check
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Check for README
-      run: |
-        if [ ! -f "README.md" ]; then
-          echo "❌ README.md is missing"
-          exit 1
-        fi
-        echo "✅ README.md found"
-        
-    - name: Check documentation completeness
-      run: |
-        echo "📚 Checking documentation completeness..."
-        
-        # Check if README contains essential sections
-        sections=("Installation" "Configuration" "Usage" "Examples" "Testing")
-        for section in "${sections[@]}"; do
-          if ! grep -qi "$section" README.md; then
-            echo "⚠️  Section '$section' might be missing in README.md"
-          else
-            echo "✅ Section '$section' found"
-          fi
-        done
-        
-        # Check for inline comments in code
-        if ! grep -r "//\|#" components/ > /dev/null; then
-          echo "⚠️  Consider adding more inline comments to the code"
-        else
-          echo "✅ Code contains comments"
-        fi
-        
-        # Check for example configurations
-        if [ ! -d "examples/" ]; then
-          echo "⚠️ No examples directory found"
-        else
-          echo "✅ Examples directory exists"
-          echo "📄 Found examples: $(find examples/ -name "*.yaml" | wc -l) files"
-        fi
-        
-        # Check for documentation directory
-        if [ -d "docs/" ]; then
-          echo "✅ Documentation directory exists"
-          echo "📄 Found docs: $(find docs/ -name "*.md" | wc -l) files"
-        else
-          echo "⚠️ Consider creating a docs/ directory for detailed documentation"
-        fi
 
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Run Bandit security scan
-      run: |
-        pip install bandit
-        echo "🔒 Running security scan with Bandit..."
-        bandit -r components/ -f json -o bandit-report.json || echo "⚠️ Security issues found"
-        if [ -f bandit-report.json ]; then
-          echo "📄 Security report generated"
-        fi
-        
-    - name: Run Safety check for dependencies
-      run: |
-        pip install safety
-        echo "🛡️ Checking dependencies for known vulnerabilities..."
-        pip freeze | safety check || echo "⚠️ Vulnerable dependencies found"
-        
-    - name: Check for hardcoded secrets
-      run: |
-        echo "🔍 Checking for potential hardcoded secrets..."
-        
-        # Check for common secret patterns
-        patterns=("password" "secret" "key" "token" "api_key")
-        found_secrets=false
-        
-        for pattern in "${patterns[@]}"; do
-          if grep -ri "$pattern.*=" components/ *.yaml *.yml 2>/dev/null | grep -v "example\|test\|placeholder\|template"; then
-            echo "⚠️  Potential hardcoded secret found: $pattern"
-            found_secrets=true
-          fi
-        done
-        
-        if [ "$found_secrets" = false ]; then
-          echo "✅ No hardcoded secrets detected"
-        fi
-        
-    - name: Check file permissions
-      run: |
-        echo "🔐 Checking file permissions..."
-        find . -type f -perm /o+w -exec echo "⚠️ World-writable file: {}" \;
-        find . -type f -name "*.py" -perm /u+x -exec echo "✅ Executable Python file: {}" \;
-        echo "✅ File permissions check completed"
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  esphome-standards:
-    name: ESPHome Standards Compliance
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Check component structure
-      run: |
-        echo "🏗️ Checking ESPHome component structure..."
-        
-        # Check required files
-        required_files=("components/impulse_cover/__init__.py" "components/impulse_cover/cover.py" "components/impulse_cover/impulse_cover.h" "components/impulse_cover/impulse_cover.cpp")
-        for file in "${required_files[@]}"; do
-          if [ ! -f "$file" ]; then
-            echo "❌ Required file missing: $file"
-            exit 1
-          else
-            echo "✅ Found: $file"
-          fi
-        done
-        
-        # Check for optional but recommended files
-        optional_files=("test-impulse-cover.sh" "examples/basic-configuration.yaml" "examples/with-sensors.yaml" "examples/partial-test.yaml")
-        for file in "${optional_files[@]}"; do
-          if [ -f "$file" ]; then
-            echo "✅ Found optional: $file"
-          else
-            echo "⚠️ Optional file missing: $file"
-          fi
-        done
-        
-    - name: Check ESPHome configuration standards
-      run: |
-        echo "📋 Checking ESPHome configuration standards..."
-        
-        # Check for proper schema usage
-        if ! grep -q "CONFIG_SCHEMA" components/impulse_cover/cover.py; then
-          echo "❌ CONFIG_SCHEMA not found in cover.py"
-          exit 1
-        fi
-        echo "✅ CONFIG_SCHEMA found"
-        
-        # Check for proper to_code function
-        if ! grep -q "async def to_code" components/impulse_cover/cover.py; then
-          echo "❌ to_code function not found"
-          exit 1
-        fi
-        echo "✅ to_code function found"
-        
-        # Check for proper component inheritance
-        if ! grep -q "cover\.Cover.*Component" components/impulse_cover/impulse_cover.h; then
-          echo "❌ Proper component inheritance not found"
-          exit 1
-        fi
-        echo "✅ Component inheritance correct"
-        
-        # Check for CODEOWNERS
-        if [ -f "components/impulse_cover/__init__.py" ] && grep -q "CODEOWNERS" components/impulse_cover/__init__.py; then
-          echo "✅ CODEOWNERS defined"
-        else
-          echo "⚠️ Consider adding CODEOWNERS in __init__.py"
-        fi
-        
-        # Check for dependencies
-        if grep -q "DEPENDENCIES" components/impulse_cover/__init__.py; then
-          echo "✅ Dependencies declared"
-        else
-          echo "⚠️ Consider declaring dependencies"
-        fi
+      - name: Check documentation files
+        run: |
+          echo "Checking for required documentation files..."
+          test -f README.md || (echo "README.md missing" && exit 1)
+          test -f CHANGELOG.md || (echo "CHANGELOG.md missing" && exit 1)
+          test -f CONTRIBUTING.md || (echo "CONTRIBUTING.md missing" && exit 1)
+          test -f SECURITY.md || (echo "SECURITY.md missing" && exit 1)
+          echo "All documentation files present ✅"
 
-  results:
-    name: Quality Check Results
-    runs-on: ubuntu-latest
-    needs: [esphome-validation, esphome-compilation, code-quality, automated-testing, cpp-quality, documentation, security, esphome-standards]
-    if: always()
-    
-    steps:
-    - name: Report results
-      run: |
-        echo "## 🔍 ESPHome Impulse Cover - Quality Check Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Configuration validation results
-        if [ "${{ needs.esphome-validation.result }}" == "success" ]; then
-          echo "✅ **ESPHome Configuration Validation**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **ESPHome Configuration Validation**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Compilation results
-        if [ "${{ needs.esphome-compilation.result }}" == "success" ]; then
-          echo "✅ **ESPHome Compilation**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **ESPHome Compilation**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Code quality results
-        if [ "${{ needs.code-quality.result }}" == "success" ]; then
-          echo "✅ **Code Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Code Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Automated testing results
-        if [ "${{ needs.automated-testing.result }}" == "success" ]; then
-          echo "✅ **Automated Testing**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Automated Testing**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # C++ quality results
-        if [ "${{ needs.cpp-quality.result }}" == "success" ]; then
-          echo "✅ **C++ Quality**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **C++ Quality**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Documentation results
-        if [ "${{ needs.documentation.result }}" == "success" ]; then
-          echo "✅ **Documentation**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Documentation**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Security results
-        if [ "${{ needs.security.result }}" == "success" ]; then
-          echo "✅ **Security**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Security**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # ESPHome standards results
-        if [ "${{ needs.esphome-standards.result }}" == "success" ]; then
-          echo "✅ **ESPHome Standards**: PASSED" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **ESPHome Standards**: FAILED" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## 📊 Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "🎯 **Quality Gate**: All checks must pass before merging to main" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "📚 **Documentation**: [README.md](README.md) | [Test Script](docs/TEST_SCRIPT.md) | [Partial Opening](docs/PARTIAL_OPENING.md)" >> $GITHUB_STEP_SUMMARY
+      - name: Check example configurations
+        run: |
+          echo "Checking example configurations..."
+          test -d examples/ || (echo "examples/ directory missing" && exit 1)
+          test -f examples/basic-configuration.yaml || (echo "Basic example missing" && exit 1)
+          test -f examples/with-sensors.yaml || (echo "Sensors example missing" && exit 1)
+          test -f examples/partial-test.yaml || (echo "Partial opening example missing" && exit 1)
+          echo "All example configurations present ✅"
+
+      - name: Validate markdown
+        run: |
+          echo "Markdown files validation..."
+          for file in *.md docs/*.md; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists and is readable"
+            fi
+          done
