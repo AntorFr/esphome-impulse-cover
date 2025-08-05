@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install ESPHome
+      run: |
+        pip install --upgrade pip
+        pip install esphome==2025.7.4
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        if [ -f "CHANGELOG.md" ]; then
+          echo "## Changes" > changelog.txt
+          awk '/^## / && !flag {flag=1; next} /^## / && flag {exit} flag' CHANGELOG.md >> changelog.txt
+        else
+          echo "## Changes" > changelog.txt
+          echo "- Impulse Cover component improvements" >> changelog.txt
+          echo "- Enhanced partial opening support" >> changelog.txt
+          echo "- Binary sensor functionality" >> changelog.txt
+          echo "- Comprehensive testing and validation" >> changelog.txt
+        fi
+        
+    - name: Run full validation and compilation tests
+      run: |
+        chmod +x test-impulse-cover.sh
+        echo "🧪 Running validation tests..."
+        ./test-impulse-cover.sh
+        echo "🔨 Running compilation tests..."
+        ./test-impulse-cover.sh --compile
+        
+    - name: Create release assets
+      run: |
+        mkdir -p release-assets
+        
+        # Copy main component files
+        cp -r components/ release-assets/
+        
+        # Copy documentation
+        cp README.md release-assets/
+        cp -r docs/ release-assets/ 2>/dev/null || echo "No docs directory"
+        cp -r examples/ release-assets/
+        
+        # Copy test script
+        cp test-impulse-cover.sh release-assets/
+        
+        # Create installation guide
+        cat > release-assets/INSTALLATION.md << 'EOF'
+        # ESPHome Impulse Cover Installation
+        
+        ## Quick Installation
+        
+        1. Clone or download this repository
+        2. Copy the components/impulse_cover/ directory to your ESPHome configuration directory  
+        3. Use one of the example configurations as a starting point
+        4. Run the test script to validate your setup
+        
+        ## Example Configurations
+        
+        - examples/basic-configuration.yaml - Basic setup
+        - examples/with-sensors.yaml - With binary sensors  
+        - examples/partial-test.yaml - Partial opening support
+        
+        ## Testing
+        
+        Run the automated test script for validation and compilation.
+        
+        For more information, see README.md.
+        EOF
+        
+        # Create archive
+        tar -czf impulse-cover-component.tar.gz -C release-assets .
+        zip -r impulse-cover-component.zip release-assets/
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.version || github.ref_name }}
+        name: ESPHome Impulse Cover ${{ github.event.inputs.version || github.ref_name }}
+        body_path: changelog.txt
+        draft: false
+        prerelease: false
+        files: |
+          impulse-cover-component.tar.gz
+          impulse-cover-component.zip
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Update documentation
+      run: |
+        echo "📚 Release ${{ github.event.inputs.version || github.ref_name }} created successfully!"
+        echo "📦 Available downloads:"
+        echo "  - impulse-cover-component.tar.gz"
+        echo "  - impulse-cover-component.zip"
+        echo "🎯 All quality checks passed!"

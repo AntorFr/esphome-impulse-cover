@@ -1,0 +1,282 @@
+name: Performance and Compatibility Tests
+
+on:
+  schedule:
+    # Run performance tests weekly on Saturdays
+    - cron: '0 10 * * 6'
+  workflow_dispatch:
+    inputs:
+      esphome_version:
+        description: 'Specific ESPHome version to test (e.g., 2025.7.4)'
+        required: false
+        type: string
+
+jobs:
+  esphome-compatibility:
+    name: ESPHome Version Compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        esphome_version: ['2025.7.4', '2025.7.3', '2025.7.2']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install ESPHome ${{ matrix.esphome_version }}
+      run: |
+        pip install --upgrade pip
+        pip install esphome==${{ matrix.esphome_version }}
+        echo "📋 Testing with ESPHome ${{ matrix.esphome_version }}"
+        
+    - name: Create test secrets
+      run: |
+        cat > secrets.yaml << EOF
+        wifi_ssid: "test_network"
+        wifi_password: "test_password"
+        ota_password: "test_password"
+        ap_password: "test_password"
+        EOF
+        
+    - name: Test basic configuration
+      run: |
+        echo "🧪 Testing basic configuration with ESPHome ${{ matrix.esphome_version }}..."
+        python -m esphome config examples/basic-configuration.yaml
+        echo "✅ Basic configuration validated"
+        
+    - name: Test sensor configuration
+      run: |
+        echo "🧪 Testing sensor configuration with ESPHome ${{ matrix.esphome_version }}..."
+        python -m esphome config examples/with-sensors.yaml
+        echo "✅ Sensor configuration validated"
+        
+    - name: Test partial opening configuration
+      run: |
+        echo "🧪 Testing partial opening configuration with ESPHome ${{ matrix.esphome_version }}..."
+        python -m esphome config examples/partial-test.yaml
+        echo "✅ Partial opening configuration validated"
+
+  compilation-performance:
+    name: Compilation Performance Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [esp8266, esp32]
+        config: 
+          - examples/basic-configuration.yaml
+          - examples/with-sensors.yaml
+          - examples/partial-test.yaml
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install ESPHome
+      run: |
+        pip install --upgrade pip
+        pip install esphome==2025.7.4
+        
+    - name: Create test secrets
+      run: |
+        cat > secrets.yaml << EOF
+        wifi_ssid: "test_network"
+        wifi_password: "test_password"
+        ota_password: "test_password"
+        ap_password: "test_password"
+        EOF
+        
+    - name: Compile and measure performance
+      run: |
+        echo "🔨 Compiling ${{ matrix.config }} for ${{ matrix.platform }}..."
+        
+        # Measure compilation time
+        START_TIME=$(date +%s)
+        timeout 20m python -m esphome compile "${{ matrix.config }}" --no-logs
+        END_TIME=$(date +%s)
+        
+        COMPILATION_TIME=$((END_TIME - START_TIME))
+        echo "⏱️ Compilation time: ${COMPILATION_TIME} seconds"
+        
+        # Check binary size if compilation succeeded
+        if [ -d ".esphome/build" ]; then
+          BINARY_SIZE=$(find .esphome/build -name "*.bin" -exec du -b {} \; | awk '{sum+=$1} END {print sum}')
+          if [ -n "$BINARY_SIZE" ]; then
+            BINARY_SIZE_KB=$((BINARY_SIZE / 1024))
+            echo "📦 Binary size: ${BINARY_SIZE_KB} KB"
+            
+            # Check if binary size is reasonable
+            if [ $BINARY_SIZE_KB -gt 1000 ]; then
+              echo "⚠️ Binary size is quite large (${BINARY_SIZE_KB} KB)"
+            else
+              echo "✅ Binary size is reasonable (${BINARY_SIZE_KB} KB)"
+            fi
+          fi
+        fi
+        
+        echo "✅ Performance test completed for ${{ matrix.platform }}"
+
+  memory-usage-analysis:
+    name: Memory Usage Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install analysis tools
+      run: |
+        pip install --upgrade pip
+        pip install esphome==2025.7.4 memory-profiler
+        
+    - name: Analyze component memory usage
+      run: |
+        echo "🧠 Analyzing memory usage patterns..."
+        
+        # Create test secrets
+        cat > secrets.yaml << EOF
+        wifi_ssid: "test_network"
+        wifi_password: "test_password"
+        ota_password: "test_password"
+        ap_password: "test_password"
+        EOF
+        
+        # Analyze different configurations
+        configs=("examples/basic-configuration.yaml" "examples/with-sensors.yaml" "examples/partial-test.yaml")
+        
+        for config in "${configs[@]}"; do
+          echo "📊 Analyzing $config..."
+          
+          # Run validation and capture any memory-related warnings
+          python -m esphome config "$config" 2>&1 | grep -i "memory\|ram\|flash" || echo "No memory warnings found"
+          
+          echo "✅ Analysis completed for $config"
+        done
+
+  stress-testing:
+    name: Component Stress Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install ESPHome
+      run: |
+        pip install --upgrade pip
+        pip install esphome==2025.7.4
+        
+    - name: Run automated test script multiple times
+      run: |
+        echo "🏋️ Running stress tests..."
+        
+        chmod +x test-impulse-cover.sh
+        
+        # Run validation tests multiple times
+        for i in {1..3}; do
+          echo "🧪 Stress test iteration $i/3..."
+          ./test-impulse-cover.sh
+          echo "✅ Iteration $i completed successfully"
+        done
+        
+        echo "✅ All stress test iterations completed"
+
+  documentation-performance:
+    name: Documentation and Examples Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Validate all example configurations
+      run: |
+        echo "📚 Validating all documentation examples..."
+        
+        # Check if all examples in docs are valid
+        if [ -d "docs/" ]; then
+          grep -r "```yaml" docs/ | grep -v "binary: false" | while read -r line; do
+            echo "Found YAML example: $line"
+          done
+        fi
+        
+        # Validate that all examples directory files exist and are mentioned in README
+        if [ -d "examples/" ]; then
+          for example in examples/*.yaml; do
+            if [ -f "$example" ]; then
+              basename_example=$(basename "$example")
+              if grep -q "$basename_example" README.md; then
+                echo "✅ $basename_example is documented in README"
+              else
+                echo "⚠️ $basename_example not mentioned in README"
+              fi
+            fi
+          done
+        fi
+
+  results:
+    name: Performance Test Results
+    runs-on: ubuntu-latest
+    needs: [esphome-compatibility, compilation-performance, memory-usage-analysis, stress-testing, documentation-performance]
+    if: always()
+    
+    steps:
+    - name: Generate performance report
+      run: |
+        echo "## 🚀 Performance and Compatibility Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Test run completed on:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.esphome-compatibility.result }}" == "success" ]; then
+          echo "✅ **ESPHome Compatibility**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **ESPHome Compatibility**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.compilation-performance.result }}" == "success" ]; then
+          echo "✅ **Compilation Performance**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Compilation Performance**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.memory-usage-analysis.result }}" == "success" ]; then
+          echo "✅ **Memory Usage Analysis**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Memory Usage Analysis**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.stress-testing.result }}" == "success" ]; then
+          echo "✅ **Stress Testing**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Stress Testing**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.documentation-performance.result }}" == "success" ]; then
+          echo "✅ **Documentation Validation**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Documentation Validation**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 **Summary**: Performance and compatibility testing completed" >> $GITHUB_STEP_SUMMARY
+        echo "🔄 **Next run**: Weekly on Saturdays" >> $GITHUB_STEP_SUMMARY

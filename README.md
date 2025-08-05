@@ -251,6 +251,20 @@ This component is ideal for:
   - `with-sensors.yaml`: Full setup with endstop sensors
   - `partial-test.yaml`: Configuration optimized for partial opening
 
+## Testing
+
+Use the included test script to validate your setup:
+
+```bash
+# Quick validation test
+./test-impulse-cover.sh
+
+# Full validation + compilation test
+./test-impulse-cover.sh --compile
+```
+
+See **[Test Script Documentation](docs/TEST_SCRIPT.md)** for detailed usage.
+
 ## Troubleshooting
 
 ### Cover doesn't respond
