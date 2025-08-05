@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code formatting and style enforcement
 - Comprehensive example validation
 
+### Fixed - YAML Formatting and Configuration
+- Removed trailing spaces from all example configuration files
+- Fixed YAML syntax validation for all workflow files
+- Added missing `.venv` pattern to .gitignore
+- Corrected indentation issues in GitHub Actions workflows
+- Ensured all YAML files pass yamllint validation
+
 ### Fixed - Binary Sensor and Partial Opening
 - Restored missing binary sensor functionality with conditional compilation
 - Added `#ifdef USE_BINARY_SENSOR` for backward compatibility

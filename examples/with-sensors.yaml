@@ -20,7 +20,7 @@ ota:
 wifi:
   ssid: "test-network"
   password: "test1234"
-  
+
   # Enable fallback hotspot
   ap:
     ssid: "Test Fallback"
@@ -30,7 +30,7 @@ captive_portal:
 
 # Import the custom component (local path for testing)
 external_components:
-  - source: 
+  - source:
       type: local
       path: ../components
     components: [ impulse_cover ]
@@ -44,16 +44,16 @@ output:
 # Optional: Binary sensors for testing
 binary_sensor:
   - platform: gpio
-    pin: 
+    pin:
       number: GPIO4
       mode: INPUT_PULLUP
       inverted: true
     name: "Test Gate Open"
     id: test_gate_open
-    
+
   - platform: gpio
     pin:
-      number: GPIO5  
+      number: GPIO5
       mode: INPUT_PULLUP
       inverted: true
     name: "Test Gate Close"
@@ -64,23 +64,23 @@ cover:
   - platform: impulse_cover
     name: "Test Gate"
     id: test_gate
-    
+
     # Required: Output for sending pulses
     output: test_gate_output
-    
+
     # Required: Timing configuration
     open_duration: 15s
     close_duration: 15s
-    
+
     # Optional: Safety and pulse timing
     pulse_delay: 500ms
     safety_timeout: 60s
     safety_max_cycles: 5
-    
+
     # Optional: Endstop sensors
     open_sensor: test_gate_open
     close_sensor: test_gate_close
-    
-    # Optional: Sensor logic inversion  
+
+    # Optional: Sensor logic inversion
     open_sensor_inverted: false    # Set to true if sensor is active LOW
     close_sensor_inverted: false   # Set to true if sensor is active LOW

@@ -26,7 +26,7 @@ captive_portal:
 
 # Import the custom component
 external_components:
-  - source: 
+  - source:
       type: local
       path: ../components
     components: [ impulse_cover ]
@@ -44,13 +44,13 @@ output:
 binary_sensor:
   # Example: Reed switch sensor (active HIGH when magnet is present)
   - platform: gpio
-    pin: 
+    pin:
       number: GPIO14
       mode: INPUT_PULLUP
     name: "Gate Open Reed Switch"
     id: gate_open_reed
     device_class: opening
-    
+
   # Example: Limit switch sensor (active LOW when pressed)
   - platform: gpio
     pin:
@@ -64,21 +64,21 @@ cover:
   - platform: impulse_cover
     name: "Advanced Gate"
     id: advanced_gate
-    
+
     # Required: Output and timing
     output: gate_output
     open_duration: 18s
     close_duration: 16s
-    
+
     # Optional: Safety and pulse timing
     pulse_delay: 750ms
     safety_timeout: 45s
     safety_max_cycles: 3
-    
+
     # Endstop sensors with different logic
     open_sensor: gate_open_reed
     close_sensor: gate_close_limit
-    open_sensor_inverted: false   # Reed switch is active HIGH 
+    open_sensor_inverted: false   # Reed switch is active HIGH
     close_sensor_inverted: true   # Limit switch is active LOW (pressed = LOW)
 
 # Status LED to show gate state
