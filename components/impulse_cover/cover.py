@@ -1,10 +1,10 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, cover, output
 import esphome.config_validation as cv
-from esphome.components import cover, binary_sensor, output
 from esphome.const import (
+    CONF_CLOSE_DURATION,
     CONF_ID,
     CONF_OPEN_DURATION,
-    CONF_CLOSE_DURATION,
     CONF_OUTPUT,
 )
 

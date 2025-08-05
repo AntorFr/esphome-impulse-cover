@@ -1,0 +1,44 @@
+esphome:
+  name: esp8266-test
+  friendly_name: ESP8266 Test
+
+esp8266:
+  board: nodemcuv2
+  framework:
+    version: recommended
+
+logger:
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "esp8266-test Fallback Hotspot"
+    password: "12345678"
+
+external_components:
+  - source:
+      type: local
+      path: ./components
+    components:
+      - impulse_cover
+
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: gate_output
+
+cover:
+  - platform: impulse_cover
+    name: "Gate"
+    id: gate_cover
+    output: gate_output
+    open_duration: 15s
+    close_duration: 15s
+    pulse_delay: 500ms
+    safety_timeout: 60s
+    safety_max_cycles: 5

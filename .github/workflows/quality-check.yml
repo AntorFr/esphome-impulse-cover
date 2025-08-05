@@ -84,10 +84,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [esp8266, esp32]
-        config:
-          - examples/basic-configuration.yaml
-          - examples/with-sensors.yaml
+        include:
+          - platform: esp32
+            config: examples/basic-configuration.yaml
+          - platform: esp32
+            config: examples/with-sensors.yaml
+          - platform: esp8266
+            config: examples/esp8266-basic.yaml
 
     steps:
       - name: Checkout code
@@ -113,9 +116,6 @@ jobs:
       - name: Create platform-specific config
         run: |
           cp ${{ matrix.config }} temp-config.yaml
-          # Replace platform in config
-          sed -i "s/esp8266/${{ matrix.platform }}/g" temp-config.yaml
-          sed -i "s/esp32/${{ matrix.platform }}/g" temp-config.yaml
           # Fix component path for GitHub Actions
           sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
 
