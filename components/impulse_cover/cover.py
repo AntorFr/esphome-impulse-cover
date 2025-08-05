@@ -24,12 +24,6 @@ CONF_ON_CLOSE = "on_close"
 CONF_ON_IDLE = "on_idle"
 CONF_ON_SAFETY = "on_safety"
 
-# Trigger ID constants
-CONF_ON_OPEN_TRIGGER_ID = "on_open_trigger_id"
-CONF_ON_CLOSE_TRIGGER_ID = "on_close_trigger_id"
-CONF_ON_IDLE_TRIGGER_ID = "on_idle_trigger_id"
-CONF_ON_SAFETY_TRIGGER_ID = "on_safety_trigger_id"
-
 # Component namespace and class
 impulse_cover_ns = cg.esphome_ns.namespace("impulse_cover")
 ImpulseCover = impulse_cover_ns.class_("ImpulseCover", cover.Cover, cg.Component)
@@ -50,30 +44,22 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLOSE_SENSOR_INVERTED, default=False): cv.boolean,
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_ON_OPEN_TRIGGER_ID): cv.declare_id(
-                        automation.Trigger.template()
-                    ),
+                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
                 }
             ),
             cv.Optional(CONF_ON_CLOSE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_ON_CLOSE_TRIGGER_ID): cv.declare_id(
-                        automation.Trigger.template()
-                    ),
+                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
                 }
             ),
             cv.Optional(CONF_ON_IDLE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_ON_IDLE_TRIGGER_ID): cv.declare_id(
-                        automation.Trigger.template()
-                    ),
+                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
                 }
             ),
             cv.Optional(CONF_ON_SAFETY): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_ON_SAFETY_TRIGGER_ID): cv.declare_id(
-                        automation.Trigger.template()
-                    ),
+                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
                 }
             ),
         }
@@ -112,22 +98,26 @@ async def to_code(config):
         cg.add(var.set_close_sensor_inverted(config[CONF_CLOSE_SENSOR_INVERTED]))
 
     # Set up automation triggers
-    for conf in config.get(CONF_ON_OPEN, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_OPEN_TRIGGER_ID])
-        cg.add(var.add_on_open_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+    if CONF_ON_OPEN in config:
+        for conf in config[CONF_ON_OPEN]:
+            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+            cg.add(var.add_on_open_trigger(trigger))
+            await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_CLOSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_CLOSE_TRIGGER_ID])
-        cg.add(var.add_on_close_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+    if CONF_ON_CLOSE in config:
+        for conf in config[CONF_ON_CLOSE]:
+            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+            cg.add(var.add_on_close_trigger(trigger))
+            await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_IDLE, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_IDLE_TRIGGER_ID])
-        cg.add(var.add_on_idle_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+    if CONF_ON_IDLE in config:
+        for conf in config[CONF_ON_IDLE]:
+            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+            cg.add(var.add_on_idle_trigger(trigger))
+            await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_SAFETY, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_SAFETY_TRIGGER_ID])
-        cg.add(var.add_on_safety_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+    if CONF_ON_SAFETY in config:
+        for conf in config[CONF_ON_SAFETY]:
+            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+            cg.add(var.add_on_safety_trigger(trigger))
+            await automation.build_automation(trigger, [], conf)
