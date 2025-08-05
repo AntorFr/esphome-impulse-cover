@@ -4,6 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/cover/cover.h"
 #include "esphome/components/output/binary_output.h"
+#include <vector>
 
 namespace esphome {
 #ifdef USE_BINARY_SENSOR
@@ -94,6 +95,25 @@ class ImpulseCover : public cover::Cover, public Component {
  public:
   ImpulseCoverOperation get_current_operation() const { return current_operation_; }
   bool is_safety_triggered() const { return safety_triggered_; }
+  
+  // Automation triggers
+  void add_on_open_trigger(Trigger<> *trigger);
+  void add_on_close_trigger(Trigger<> *trigger);
+  void add_on_idle_trigger(Trigger<> *trigger);
+  void add_on_safety_trigger(Trigger<> *trigger);
+
+ protected:
+  // Helper methods for firing triggers
+  void fire_on_open_triggers_();
+  void fire_on_close_triggers_();
+  void fire_on_idle_triggers_();
+  void fire_on_safety_triggers_();
+
+  // Trigger lists
+  std::vector<Trigger<> *> on_open_triggers_;
+  std::vector<Trigger<> *> on_close_triggers_;
+  std::vector<Trigger<> *> on_idle_triggers_;
+  std::vector<Trigger<> *> on_safety_triggers_;
 };
 
 }  // namespace impulse_cover

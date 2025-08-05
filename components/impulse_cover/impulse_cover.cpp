@@ -215,6 +215,13 @@ void ImpulseCover::start_direction(cover::CoverOperation dir) {
   this->pulse_sent_ = false;
   this->start_position_ = this->position;  // Store starting position for correct calculation
   
+  // Fire appropriate automation triggers
+  if (dir == cover::COVER_OPERATION_OPENING) {
+    this->fire_on_open_triggers_();
+  } else if (dir == cover::COVER_OPERATION_CLOSING) {
+    this->fire_on_close_triggers_();
+  }
+  
   ESP_LOGD(TAG, "Starting %s operation from position %.2f to %.2f", 
            this->current_operation_ == ImpulseCoverOperation::OPENING ? "OPEN" : "CLOSE",
            this->start_position_, this->target_position_);
@@ -227,6 +234,9 @@ void ImpulseCover::stop_movement() {
     this->target_operation_ = ImpulseCoverOperation::IDLE;
     this->pending_reverse_ = false;
     this->pulse_sent_ = false;
+    
+    // Fire idle trigger when movement stops
+    this->fire_on_idle_triggers_();
   }
 }
 
@@ -297,6 +307,7 @@ void ImpulseCover::check_safety() {
   if (elapsed > this->safety_timeout_) {
     ESP_LOGW(TAG, "Safety timeout triggered after %ums", elapsed);
     this->safety_triggered_ = true;
+    this->fire_on_safety_triggers_();
     this->stop_movement();
     return;
   }
@@ -305,6 +316,7 @@ void ImpulseCover::check_safety() {
   if (this->safety_cycle_count_ >= this->safety_max_cycles_) {
     ESP_LOGW(TAG, "Safety max cycles triggered (%u cycles)", this->safety_cycle_count_);
     this->safety_triggered_ = true;
+    this->fire_on_safety_triggers_();
     this->stop_movement();
     return;
   }
@@ -354,6 +366,48 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   this->close_sensor_ = sensor;
 }
 #endif
+
+// Automation trigger methods
+void ImpulseCover::add_on_open_trigger(Trigger<> *trigger) {
+  this->on_open_triggers_.push_back(trigger);
+}
+
+void ImpulseCover::add_on_close_trigger(Trigger<> *trigger) {
+  this->on_close_triggers_.push_back(trigger);
+}
+
+void ImpulseCover::add_on_idle_trigger(Trigger<> *trigger) {
+  this->on_idle_triggers_.push_back(trigger);
+}
+
+void ImpulseCover::add_on_safety_trigger(Trigger<> *trigger) {
+  this->on_safety_triggers_.push_back(trigger);
+}
+
+// Protected helper methods for firing triggers
+void ImpulseCover::fire_on_open_triggers_() {
+  for (auto *trigger : this->on_open_triggers_) {
+    trigger->trigger();
+  }
+}
+
+void ImpulseCover::fire_on_close_triggers_() {
+  for (auto *trigger : this->on_close_triggers_) {
+    trigger->trigger();
+  }
+}
+
+void ImpulseCover::fire_on_idle_triggers_() {
+  for (auto *trigger : this->on_idle_triggers_) {
+    trigger->trigger();
+  }
+}
+
+void ImpulseCover::fire_on_safety_triggers_() {
+  for (auto *trigger : this->on_safety_triggers_) {
+    trigger->trigger();
+  }
+}
 
 }  // namespace impulse_cover
 }  // namespace esphome

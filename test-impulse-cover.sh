@@ -19,9 +19,62 @@ fi
 
 source .venv/bin/activate
 
-# Install/update ESPHome
-echo "📦 Installing/updating ESPHome..."
+# Install/update ESPHome and code quality tools
+echo "📦 Installing/updating ESPHome and code quality tools..."
 pip install --upgrade esphome > /dev/null 2>&1
+pip install --upgrade black isort yamllint pylint > /dev/null 2>&1
+
+# Code Quality Checks Section
+echo ""
+echo "🎨 === CODE QUALITY CHECKS ==="
+
+# 1. Black formatting check
+echo "🖤 Checking Black code formatting..."
+if python -m black --check --diff components/ > /dev/null 2>&1; then
+    echo "✅ Black formatting: All files properly formatted"
+else
+    echo "❌ Black formatting: Issues found"
+    echo "🔧 Run: python -m black components/ to fix formatting"
+    python -m black --check --diff components/
+    exit 1
+fi
+
+# 2. Import sorting check (isort)
+echo "📋 Checking import sorting..."
+if python -m isort --check-only --diff components/ > /dev/null 2>&1; then
+    echo "✅ Import sorting: All imports properly sorted"
+else
+    echo "❌ Import sorting: Issues found"
+    echo "🔧 Run: python -m isort components/ to fix import sorting"
+    python -m isort --check-only --diff components/
+    exit 1
+fi
+
+# 3. YAML linting check
+echo "📝 Checking YAML formatting..."
+if yamllint examples/ .github/ > /dev/null 2>&1; then
+    echo "✅ YAML linting: All YAML files valid"
+else
+    echo "❌ YAML linting: Issues found"
+    echo "🔧 Fix trailing spaces and formatting issues"
+    yamllint examples/ .github/
+    exit 1
+fi
+
+# 4. Python code quality (pylint)
+echo "🐍 Checking Python code quality..."
+if python -m pylint components/ --max-line-length=100 --disable=missing-docstring > /dev/null 2>&1; then
+    echo "✅ Pylint: Code quality excellent"
+else
+    echo "❌ Pylint: Code quality issues found"
+    echo "🔧 Review and fix pylint warnings"
+    python -m pylint components/ --max-line-length=100 --disable=missing-docstring
+    exit 1
+fi
+
+echo "🎉 All code quality checks passed!"
+echo ""
+echo "🧪 === ESPHOME CONFIGURATION TESTS ==="
 
 # Create test secrets if they don't exist
 if [ ! -f "secrets.yaml" ]; then
@@ -175,9 +228,15 @@ fi
 echo "🎉 All tests passed successfully!"
 echo ""
 echo "📋 Summary:"
-echo "   - Basic Configuration: ✅ Valid"
-echo "   - With Sensors Configuration: ✅ Valid"
-echo "   - Partial Opening Configuration: ✅ Valid"
+echo "   - Code Quality Checks: ✅ All passed"
+echo "     • Black formatting: ✅ Perfect"
+echo "     • Import sorting: ✅ Perfect"  
+echo "     • YAML linting: ✅ Perfect"
+echo "     • Pylint score: ✅ Excellent"
+echo "   - ESPHome Configuration Tests: ✅ All valid"
+echo "     • Basic Configuration: ✅ Valid"
+echo "     • With Sensors Configuration: ✅ Valid"
+echo "     • Partial Opening Configuration: ✅ Valid"
 echo "   - Component Files: ✅ Present"
 echo "   - Binary Sensor Support: ✅ Conditional compilation"
 echo "   - Documentation: ✅ Complete"
@@ -189,11 +248,18 @@ fi
 echo ""
 echo "🚀 Impulse Cover component is ready for use!"
 echo ""
+echo "🎯 This script validates:"
+echo "   - Code quality (Black, isort, yamllint, pylint)"
+echo "   - ESPHome configuration syntax"
+echo "   - Component file structure"
+echo "   - Documentation completeness"
+echo ""
 echo "💡 Usage examples:"
 echo "   - Basic setup: See examples/basic-configuration.yaml"
 echo "   - With sensors: See examples/with-sensors.yaml"
 echo "   - Partial opening: See examples/partial-test.yaml"
 echo "   - Documentation: docs/PARTIAL_OPENING.md"
 echo ""
-echo "🔧 To run with compilation tests:"
-echo "   ./test-impulse-cover.sh --compile"
+echo "🔧 Options:"
+echo "   ./test-impulse-cover.sh          # Full validation (recommended before commit)"
+echo "   ./test-impulse-cover.sh --compile # Add compilation tests (slower)"

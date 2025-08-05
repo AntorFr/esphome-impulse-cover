@@ -81,8 +81,50 @@ cover:
     open_sensor_inverted: false   # Reed switch is active HIGH
     close_sensor_inverted: true   # Limit switch is active LOW (pressed = LOW)
 
+    # Advanced automation triggers
+    on_open:
+      - logger.log: "Gate opening sequence started"
+      - light.turn_on: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: opening
+            device: "{{ device_name }}"
+
+    on_close:
+      - logger.log: "Gate closing sequence started"
+      - light.turn_on: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: closing
+            device: "{{ device_name }}"
+
+    on_idle:
+      - logger.log: "Gate movement completed"
+      - light.turn_off: gate_status_led
+      - homeassistant.event:
+          event: esphome.gate_event
+          data:
+            action: idle
+            device: "{{ device_name }}"
+
+    on_safety:
+      - logger.log:
+          level: ERROR
+          format: "Gate SAFETY STOP! Check for obstructions or mechanical issues"
+      - light.turn_on:
+          id: gate_status_led
+          flash_length: 250ms
+      - homeassistant.event:
+          event: esphome.gate_safety
+          data:
+            device: "{{ device_name }}"
+            reason: "Safety timeout or cycle limit exceeded"
+
 # Status LED to show gate state
 light:
   - platform: binary
     name: "Gate Status LED"
+    id: gate_status_led
     output: status_led_output

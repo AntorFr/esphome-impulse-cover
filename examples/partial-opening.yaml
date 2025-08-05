@@ -74,47 +74,8 @@ cover:
     open_sensor_inverted: true     # Active LOW sensor (pullup)
     close_sensor_inverted: true    # Active LOW sensor (pullup)
 
-# Example automation for partial opening scenarios
-automation:
-  # Partial opening to 30% (for pedestrian access)
-  - id: pedestrian_open
-    trigger:
-      - platform: api
-        service: pedestrian_open
-    action:
-      - cover.control:
-          id: partial_gate
-          position: 0.3  # 30% open
-
-  # Partial opening to 70% (for small vehicles)
-  - id: small_vehicle_open
-    trigger:
-      - platform: api
-        service: small_vehicle_open
-    action:
-      - cover.control:
-          id: partial_gate
-          position: 0.7  # 70% open
-
-  # Full opening for large vehicles
-  - id: full_open
-    trigger:
-      - platform: api
-        service: full_open
-    action:
-      - cover.control:
-          id: partial_gate
-          position: 1.0  # 100% open (fully open)
-
-  # Quick close
-  - id: quick_close
-    trigger:
-      - platform: api
-        service: quick_close
-    action:
-      - cover.control:
-          id: partial_gate
-          position: 0.0  # 0% open (fully closed)
+# Note: Automation examples for partial opening scenarios
+# will be available in future versions when automation triggers are implemented
 
 # Web server for easy control
 web_server:

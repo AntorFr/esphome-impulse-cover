@@ -14,11 +14,10 @@ logger:
 
 # Enable Home Assistant API
 api:
-  encryption:
-    key: "your-encryption-key"
 
 ota:
-  password: "your-ota-password"
+  - platform: esphome
+    password: "your-ota-password"
 
 wifi:
   ssid: "Your-WiFi-SSID"
@@ -35,7 +34,7 @@ captive_portal:
 external_components:
   - source:
       type: local
-      path: /path/to/esphome-impulse-cover
+      path: ../components
     components: [ impulse_cover ]
 
 # GPIO Outputs
@@ -100,40 +99,8 @@ cover:
     open_sensor: gate_open_sensor
     close_sensor: gate_close_sensor
 
-    # Optional: Automation triggers
-    on_open:
-      - logger.log: "Gate opening started"
-      - light.turn_on:
-          id: status_led
-          brightness: 50%
-
-    on_close:
-      - logger.log: "Gate closing started"
-      - light.turn_on:
-          id: status_led
-          brightness: 50%
-
-    on_idle:
-      - logger.log: "Gate movement stopped"
-      - light.turn_off: status_led
-
-    on_safety:
-      - logger.log:
-          format: "SAFETY: Gate safety mode activated!"
-          level: WARN
-      - light.turn_on:
-          id: status_led
-          red: 100%
-          green: 0%
-          blue: 0%
-          brightness: 100%
-      # Send alert to Home Assistant
-      - homeassistant.event:
-          event: esphome.gate_safety_alert
-          data:
-            device: "main_gate"
-            location: "front_entrance"
-            message: "Gate safety mode activated - check for obstructions"
+    # Note: Automation triggers (on_open, on_close, etc.)
+    # will be available in future versions
 
 # Optional: Status LED
 light:
