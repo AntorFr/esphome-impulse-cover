@@ -7,7 +7,7 @@ esphome:
 esp32:
   board: esp32dev
 
-# Network setup  
+# Network setup
 wifi:
   ssid: "Your-WiFi"
   password: "Your-Password"
@@ -45,7 +45,7 @@ esp32:
   board: esp32dev
 
 wifi:
-  ssid: "Your-WiFi" 
+  ssid: "Your-WiFi"
   password: "Your-Password"
 
 api:
@@ -68,8 +68,8 @@ binary_sensor:
     pin: GPIO4
     name: "Gate Open"
     id: gate_open
-    
-  - platform: gpio  
+
+  - platform: gpio
     pin: GPIO5
     name: "Gate Closed"
     id: gate_closed
@@ -81,16 +81,16 @@ cover:
     output: gate_output
     open_duration: 18s
     close_duration: 16s
-    
+
     # Safety settings
     pulse_delay: 750ms
     safety_timeout: 45s
     safety_max_cycles: 3
-    
+
     # Endstop sensors
     open_sensor: gate_open
     close_sensor: gate_closed
-    
+
     # Automation
     on_safety:
       - logger.log: "Gate safety activated!"

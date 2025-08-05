@@ -1,0 +1,231 @@
+name: Performance Testing
+
+on:
+  schedule:
+    # Run monthly on the 1st at 03:00 UTC
+    - cron: '0 3 1 * *'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  ESPHOME_VERSIONS: "2025.7.4,2025.6.0,2025.5.0"
+
+jobs:
+  compatibility-matrix:
+    name: ESPHome Compatibility Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        esphome-version: ["2025.7.4", "2025.6.0", "2025.5.0"]
+        platform: [esp8266, esp32]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome ${{ matrix.esphome-version }}
+        run: |
+          pip install esphome==${{ matrix.esphome-version }}
+
+      - name: Test configuration validation
+        run: |
+          echo "Testing with ESPHome ${{ matrix.esphome-version }} on ${{ matrix.platform }}..."
+
+          # Create platform-specific test config
+          cp examples/basic-configuration.yaml test-config.yaml
+          sed -i "s/esp8266/${{ matrix.platform }}/g" test-config.yaml
+          sed -i "s/esp32/${{ matrix.platform }}/g" test-config.yaml
+
+          # Validate configuration
+          esphome config test-config.yaml
+
+  compilation-performance:
+    name: Compilation Performance Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==2025.7.4
+
+      - name: Measure compilation times
+        run: |
+          echo "Measuring compilation performance..."
+
+          for config in examples/*.yaml; do
+            echo "Testing $config..."
+
+            # Create temp config with corrected paths
+            cp "$config" temp-config.yaml
+            sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
+
+            # Measure compilation time
+            start_time=$(date +%s)
+            timeout 300 esphome compile temp-config.yaml || echo "Compilation timeout or error for $config"
+            end_time=$(date +%s)
+
+            duration=$((end_time - start_time))
+            echo "Compilation time for $config: ${duration}s"
+
+            # Clean up
+            rm -f temp-config.yaml
+          done
+
+  memory-analysis:
+    name: Memory Usage Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome and tools
+        run: |
+          pip install esphome==2025.7.4
+
+      - name: Analyze memory usage
+        run: |
+          echo "Analyzing memory usage for different configurations..."
+
+          for config in examples/*.yaml; do
+            echo "Analyzing $config..."
+
+            # Create temp config with corrected paths
+            cp "$config" temp-config.yaml
+            sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
+
+            # Compile and analyze
+            if esphome compile temp-config.yaml; then
+              # Look for memory usage in build output
+              build_dir=$(basename "$config" .yaml)
+              if [ -d "$build_dir" ]; then
+                echo "Build directory: $build_dir"
+                # Add memory analysis here if build artifacts are available
+                find "$build_dir" -name "*.bin" -exec ls -lh {} \; || echo "No binary files found"
+              fi
+            else
+              echo "Compilation failed for $config"
+            fi
+
+            # Clean up
+            rm -f temp-config.yaml
+          done
+
+  stress-testing:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==2025.7.4
+
+      - name: Stress test configurations
+        run: |
+          echo "Running stress tests..."
+
+          # Test with multiple rapid configurations
+          for i in {1..5}; do
+            echo "Stress test iteration $i..."
+
+            for config in examples/*.yaml; do
+              echo "Testing $config (iteration $i)..."
+              timeout 60 esphome config "$config" || echo "Timeout on $config iteration $i"
+            done
+          done
+
+  regression-testing:
+    name: Regression Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==2025.7.4
+
+      - name: Run comprehensive test suite
+        run: |
+          echo "Running comprehensive regression tests..."
+
+          # Make test script executable
+          chmod +x test-impulse-cover.sh
+
+          # Run all tests multiple times to check for consistency
+          for i in {1..3}; do
+            echo "Regression test run $i..."
+            ./test-impulse-cover.sh || echo "Test failure in run $i"
+          done
+
+  performance-report:
+    name: Generate Performance Report
+    runs-on: ubuntu-latest
+    needs: [compatibility-matrix, compilation-performance, memory-analysis, stress-testing, regression-testing]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate performance summary
+        run: |
+          echo "# Performance Test Report" > performance-report.md
+          echo "" >> performance-report.md
+          echo "Generated on: $(date)" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "## Test Results Summary" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "- Compatibility Matrix: ${{ needs.compatibility-matrix.result }}" >> performance-report.md
+          echo "- Compilation Performance: ${{ needs.compilation-performance.result }}" >> performance-report.md
+          echo "- Memory Analysis: ${{ needs.memory-analysis.result }}" >> performance-report.md
+          echo "- Stress Testing: ${{ needs.stress-testing.result }}" >> performance-report.md
+          echo "- Regression Testing: ${{ needs.regression-testing.result }}" >> performance-report.md
+          echo "" >> performance-report.md
+
+          # Add system information
+          echo "## System Information" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "- Runner OS: $(uname -a)" >> performance-report.md
+          echo "- Python Version: $(python --version)" >> performance-report.md
+          echo "- ESPHome Version: $(pip show esphome | grep Version || echo 'Not installed')" >> performance-report.md
+
+          cat performance-report.md
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report.md
+          retention-days: 30

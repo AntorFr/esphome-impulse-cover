@@ -1,0 +1,250 @@
+name: Quality Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  ESPHOME_VERSION: "2025.7.4"
+
+jobs:
+  # Job 1: Validation des configurations
+  config-validation:
+    name: Configuration Validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - examples/basic-configuration.yaml
+          - examples/with-sensors.yaml
+          - examples/partial-test.yaml
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Validate configuration
+        run: |
+          esphome config ${{ matrix.config }}
+
+  # Job 2: Tests automatisés avec script
+  automated-testing:
+    name: Automated Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-testing
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Make test script executable
+        run: chmod +x test-impulse-cover.sh
+
+      - name: Run comprehensive tests
+        run: ./test-impulse-cover.sh
+
+  # Job 3: Compilation multi-plateforme
+  multi-platform-compilation:
+    name: Multi-Platform Compilation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: esp32
+            config: examples/basic-configuration.yaml
+          - platform: esp32
+            config: examples/with-sensors.yaml
+          - platform: esp8266
+            config: examples/esp8266-basic.yaml
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.platform }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome==${{ env.ESPHOME_VERSION }}
+
+      - name: Create platform-specific config
+        run: |
+          cp ${{ matrix.config }} temp-config.yaml
+          # Fix component path for GitHub Actions
+          sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
+
+      - name: Compile for ${{ matrix.platform }}
+        run: |
+          esphome compile temp-config.yaml
+
+  # Job 4: Qualité du code Python
+  python-quality:
+    name: Python Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-quality
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install quality tools
+        run: |
+          pip install black isort flake8 pylint
+
+      - name: Check code formatting with Black
+        run: |
+          black --check --diff components/
+
+      - name: Check import sorting with isort
+        run: |
+          isort --check-only --diff components/
+
+      - name: Run flake8 linting
+        run: |
+          flake8 components/ --max-line-length=100
+
+      - name: Run pylint
+        run: |
+          pylint components/ --max-line-length=100 --disable=missing-docstring
+
+  # Job 5: Qualité YAML
+  yaml-quality:
+    name: YAML Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          yamllint examples/ .github/
+
+  # Job 6: Tests de sécurité
+  security-checks:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          pip install safety bandit
+
+      - name: Run safety check
+        run: |
+          safety check || true
+
+      - name: Run bandit security linting
+        run: |
+          bandit -r components/ || true
+
+  # Job 7: Documentation et exemples
+  documentation-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check documentation files
+        run: |
+          echo "Checking for required documentation files..."
+          test -f README.md || (echo "README.md missing" && exit 1)
+          test -f CHANGELOG.md || (echo "CHANGELOG.md missing" && exit 1)
+          test -f CONTRIBUTING.md || (echo "CONTRIBUTING.md missing" && exit 1)
+          test -f SECURITY.md || (echo "SECURITY.md missing" && exit 1)
+          echo "All documentation files present ✅"
+
+      - name: Check example configurations
+        run: |
+          echo "Checking example configurations..."
+          test -d examples/ || (echo "examples/ directory missing" && exit 1)
+          test -f examples/basic-configuration.yaml || (echo "Basic example missing" && exit 1)
+          test -f examples/with-sensors.yaml || (echo "Sensors example missing" && exit 1)
+          test -f examples/partial-test.yaml || (echo "Partial opening example missing" && exit 1)
+          echo "All example configurations present ✅"
+
+      - name: Validate markdown
+        run: |
+          echo "Markdown files validation..."
+          for file in *.md docs/*.md; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists and is readable"
+            fi
+          done

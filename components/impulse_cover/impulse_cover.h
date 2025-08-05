@@ -3,10 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/cover/cover.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/output/binary_output.h"
 
 namespace esphome {
+#ifdef USE_BINARY_SENSOR
+namespace binary_sensor {
+class BinarySensor;
+}
+#endif
 namespace impulse_cover {
 
 enum class ImpulseCoverOperation {
@@ -20,8 +24,8 @@ class ImpulseCover : public cover::Cover, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
+  
+  // Configuration setters
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
   void set_pulse_delay(uint32_t delay) { this->pulse_delay_ = delay; }
@@ -29,8 +33,12 @@ class ImpulseCover : public cover::Cover, public Component {
   void set_safety_max_cycles(uint8_t cycles) { this->safety_max_cycles_ = cycles; }
   
   void set_output(output::BinaryOutput *output) { this->output_ = output; }
+#ifdef USE_BINARY_SENSOR
   void set_open_sensor(binary_sensor::BinarySensor *sensor);
   void set_close_sensor(binary_sensor::BinarySensor *sensor);
+  void set_open_sensor_inverted(bool inverted) { this->open_sensor_inverted_ = inverted; }
+  void set_close_sensor_inverted(bool inverted) { this->close_sensor_inverted_ = inverted; }
+#endif
   
   // Override cover traits
   cover::CoverTraits get_traits() override;
@@ -39,10 +47,14 @@ class ImpulseCover : public cover::Cover, public Component {
   void control(const cover::CoverCall &call) override;
   void start_direction(cover::CoverOperation dir);
   void stop_movement();
+  
+ private:
   void send_pulse();
   void update_position();
   void check_safety();
+#ifdef USE_BINARY_SENSOR
   void handle_endstop();
+#endif
   bool is_at_target_position();
   
   // Configuration
@@ -54,8 +66,12 @@ class ImpulseCover : public cover::Cover, public Component {
   
   // Hardware
   output::BinaryOutput *output_{nullptr};
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *open_sensor_{nullptr};
   binary_sensor::BinarySensor *close_sensor_{nullptr};
+  bool open_sensor_inverted_{false};
+  bool close_sensor_inverted_{false};
+#endif
   
   // State tracking
   ImpulseCoverOperation current_operation_{ImpulseCoverOperation::IDLE};
@@ -70,56 +86,14 @@ class ImpulseCover : public cover::Cover, public Component {
   
   // Position calculation
   float target_position_{0};
+  float start_position_{0};
   bool has_initial_state_{false};
   uint32_t last_position_update_{0};
-};
-
-// Automation triggers
-class ImpulseCoverOpenTrigger : public Trigger<> {
- public:
-  explicit ImpulseCoverOpenTrigger(ImpulseCover *parent) {
-    parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_OPENING) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class ImpulseCoverCloseTrigger : public Trigger<> {
- public:
-  explicit ImpulseCoverCloseTrigger(ImpulseCover *parent) {
-    parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_CLOSING) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class ImpulseCoverIdleTrigger : public Trigger<> {
- public:
-  explicit ImpulseCoverIdleTrigger(ImpulseCover *parent) {
-    parent->add_on_state_callback([this, parent]() {
-      if (parent->current_operation == cover::COVER_OPERATION_IDLE) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class ImpulseCoverSafetyTrigger : public Trigger<> {
- public:
-  explicit ImpulseCoverSafetyTrigger(ImpulseCover *parent) : parent_(parent) {}
   
-  void check_and_trigger() {
-    if (this->parent_->safety_triggered_) {
-      this->trigger();
-    }
-  }
-
- protected:
-  ImpulseCover *parent_;
+  // Public accessors for triggers
+ public:
+  ImpulseCoverOperation get_current_operation() const { return current_operation_; }
+  bool is_safety_triggered() const { return safety_triggered_; }
 };
 
 }  // namespace impulse_cover

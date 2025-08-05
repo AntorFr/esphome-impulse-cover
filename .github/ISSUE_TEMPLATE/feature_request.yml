@@ -1,0 +1,94 @@
+name: Feature Request
+description: Suggest an idea for the Impulse Cover component
+title: "[FEATURE] "
+labels: ["enhancement", "needs-discussion"]
+assignees:
+  - AntorFR
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please provide details about your idea.
+
+  - type: checkboxes
+    id: pre-checks
+    attributes:
+      label: Pre-flight Checks
+      description: Please confirm you have completed these steps
+      options:
+        - label: I have read the [README.md](../README.md) documentation
+          required: true
+        - label: I have checked existing issues to avoid duplicates
+          required: true
+        - label: I have considered if this could be implemented with current features
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: I would like to be able to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Describe any alternative solutions you've considered
+      placeholder: I also considered...
+
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this?
+      options:
+        - New cover functionality
+        - Sensor enhancement
+        - Configuration option
+        - Documentation improvement
+        - Performance improvement
+        - Hardware compatibility
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve my setup
+        - High - Critical for my use case
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your specific use case for this feature
+      placeholder: I need this feature because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or examples
+      placeholder: Related to...
