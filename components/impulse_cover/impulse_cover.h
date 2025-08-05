@@ -39,6 +39,10 @@ class ImpulseCover : public cover::Cover, public Component {
   void set_safety_timeout(uint32_t timeout) { this->safety_timeout_ = timeout; }
   void set_safety_max_cycles(uint8_t cycles) { this->safety_max_cycles_ = cycles; }
   
+  // Safety control
+  void reset_safety_mode() { this->safety_triggered_ = false; this->safety_cycle_count_ = 0; }
+  bool is_safety_triggered() const { return this->safety_triggered_; }
+  
   void set_output(output::BinaryOutput *output) { this->output_ = output; }
 #ifdef USE_BINARY_SENSOR
   void set_open_sensor(binary_sensor::BinarySensor *sensor);
@@ -101,7 +105,6 @@ class ImpulseCover : public cover::Cover, public Component {
   // Public accessors for triggers
  public:
   ImpulseCoverOperation get_current_operation() const { return current_operation_; }
-  bool is_safety_triggered() const { return safety_triggered_; }
   
   // Automation triggers  
   void add_on_open_trigger(Trigger<> *trigger);
@@ -154,6 +157,17 @@ class SafetyTrigger : public Trigger<> {
 
  protected:
   ImpulseCover *parent_;
+};
+
+// Action classes
+template<typename... Ts> class ResetSafetyAction : public Action<Ts...> {
+ public:
+  explicit ResetSafetyAction(ImpulseCover *cover) : cover_(cover) {}
+
+  void play(Ts... x) override { this->cover_->reset_safety_mode(); }
+
+ protected:
+  ImpulseCover *cover_;
 };
 
 }  // namespace impulse_cover
