@@ -101,6 +101,6 @@ async def to_code(config):
     ResetSafetyAction,
     cv.Schema({cv.Required(CONF_ID): cv.use_id(ImpulseCover)}),
 )
-async def reset_safety_action_to_code(config, action_id, template_arg, args):
+async def reset_safety_action_to_code(config, action_id, template_arg, _args):
     var = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, var)
