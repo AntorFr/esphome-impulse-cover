@@ -116,6 +116,8 @@ jobs:
           # Replace platform in config
           sed -i "s/esp8266/${{ matrix.platform }}/g" temp-config.yaml
           sed -i "s/esp32/${{ matrix.platform }}/g" temp-config.yaml
+          # Fix component path for GitHub Actions
+          sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
 
       - name: Compile for ${{ matrix.platform }}
         run: |

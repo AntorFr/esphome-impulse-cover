@@ -66,14 +66,21 @@ jobs:
 
           for config in examples/*.yaml; do
             echo "Testing $config..."
+            
+            # Create temp config with corrected paths
+            cp "$config" temp-config.yaml
+            sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
 
             # Measure compilation time
             start_time=$(date +%s)
-            timeout 300 esphome compile "$config" || echo "Compilation timeout or error for $config"
+            timeout 300 esphome compile temp-config.yaml || echo "Compilation timeout or error for $config"
             end_time=$(date +%s)
 
             duration=$((end_time - start_time))
             echo "Compilation time for $config: ${duration}s"
+            
+            # Clean up
+            rm -f temp-config.yaml
           done
 
   memory-analysis:
@@ -99,9 +106,13 @@ jobs:
 
           for config in examples/*.yaml; do
             echo "Analyzing $config..."
+            
+            # Create temp config with corrected paths
+            cp "$config" temp-config.yaml
+            sed -i "s|path: ../components|path: ./components|g" temp-config.yaml
 
             # Compile and analyze
-            if esphome compile "$config"; then
+            if esphome compile temp-config.yaml; then
               # Look for memory usage in build output
               build_dir=$(basename "$config" .yaml)
               if [ -d "$build_dir" ]; then
@@ -111,6 +122,10 @@ jobs:
               fi
             else
               echo "Compilation failed for $config"
+            fi
+            
+            # Clean up
+            rm -f temp-config.yaml
             fi
           done
 
