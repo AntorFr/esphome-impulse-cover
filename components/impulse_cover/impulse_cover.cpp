@@ -22,26 +22,61 @@ void ImpulseCover::setup() {
   
   // Initialize position based on sensors if available
 #ifdef USE_BINARY_SENSOR
-  if (this->open_sensor_ != nullptr && this->close_sensor_ != nullptr) {
+  bool has_open_sensor = this->open_sensor_ != nullptr;
+  bool has_close_sensor = this->close_sensor_ != nullptr;
+  
+  if (has_close_sensor) {
+    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
+    if (close_state) {
+      this->position = 0.0f;  // Fully closed
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active)");
+    } else {
+      this->position = 0.5f;  // Unknown position if only close sensor and not active
+      ESP_LOGD(TAG, "Initial state: UNKNOWN (close sensor inactive, no open sensor)");
+    }
+  }
+  
+  if (has_open_sensor) {
+    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+    if (open_state) {
+      this->position = 1.0f;  // Fully open
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active)");
+    }
+  }
+  
+  // Si les deux capteurs sont disponibles, logique plus précise
+  if (has_open_sensor && has_close_sensor) {
     bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
     bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
     
     if (open_state && !close_state) {
       this->position = 1.0f;  // Fully open
       this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active, close sensor inactive)");
     } else if (!open_state && close_state) {
       this->position = 0.0f;  // Fully closed
       this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active, open sensor inactive)");
+    } else if (open_state && close_state) {
+      this->position = 0.5f;  // Error state
+      ESP_LOGW(TAG, "Initial state: ERROR (both sensors active)");
     } else {
       this->position = 0.5f;  // Unknown position
+      ESP_LOGD(TAG, "Initial state: UNKNOWN (both sensors inactive)");
     }
-  } else {
-    // No sensors, start at unknown position
-    this->position = 0.5f;
+  }
+  
+  // Si aucun capteur configuré
+  if (!has_open_sensor && !has_close_sensor) {
+    this->position = 0.5f;  // Unknown position
+    ESP_LOGD(TAG, "Initial state: UNKNOWN (no sensors configured)");
   }
 #else
   // No sensors, start at unknown position
   this->position = 0.5f;
+  ESP_LOGD(TAG, "Initial state: UNKNOWN (sensors not compiled)");
 #endif
   
   ESP_LOGCONFIG(TAG, "Impulse Cover setup complete");
@@ -386,25 +421,49 @@ void ImpulseCover::handle_endstop() {
 
 void ImpulseCover::update_position_from_sensors() {
   // Update position based on current sensor states, even when not moving
-  if (this->open_sensor_ != nullptr && this->close_sensor_ != nullptr) {
-    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+  // Handle case where only one sensor is available
+  
+  bool has_open_sensor = this->open_sensor_ != nullptr;
+  bool has_close_sensor = this->close_sensor_ != nullptr;
+  
+  if (has_close_sensor) {
     bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
     
-    if (open_state && !close_state) {
-      // Fully open
-      if (fabs(this->position - 1.0f) > 0.01f) {
-        ESP_LOGD(TAG, "Open sensor active, updating position to 1.0 (was %.2f)", this->position);
-        this->position = 1.0f;
-      }
-    } else if (!open_state && close_state) {
-      // Fully closed
+    if (close_state) {
+      // Close sensor is active - porte fermée
       if (fabs(this->position - 0.0f) > 0.01f) {
         ESP_LOGD(TAG, "Close sensor active, updating position to 0.0 (was %.2f)", this->position);
         this->position = 0.0f;
       }
+    } else if (!has_open_sensor) {
+      // Pas de capteur d'ouverture, mais capteur fermé inactif = probablement ouvert
+      // Ne pas changer la position automatiquement dans ce cas, laisser le calcul temporel
+      ESP_LOGD(TAG, "Close sensor inactive, position remains %.2f (no open sensor)", this->position);
     }
-    // If both sensors are active or both inactive, keep current position
-    // This could indicate a sensor error or intermediate position
+  }
+  
+  if (has_open_sensor) {
+    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+    
+    if (open_state) {
+      // Open sensor is active - porte ouverte
+      if (fabs(this->position - 1.0f) > 0.01f) {
+        ESP_LOGD(TAG, "Open sensor active, updating position to 1.0 (was %.2f)", this->position);
+        this->position = 1.0f;
+      }
+    }
+  }
+  
+  // Si les deux capteurs sont disponibles, logique plus stricte
+  if (has_open_sensor && has_close_sensor) {
+    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
+    
+    if (open_state && close_state) {
+      ESP_LOGW(TAG, "Both sensors active - possible sensor error");
+    } else if (!open_state && !close_state) {
+      ESP_LOGD(TAG, "Both sensors inactive - intermediate position");
+    }
   }
 }
 #endif
