@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_OPEN_DURATION,
     CONF_OUTPUT,
+    CONF_TRIGGER_ID,
 )
 
 DEPENDENCIES = ["cover"]
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = (
             # Only unique trigger not available in base ESPHome cover
             cv.Optional(CONF_ON_SAFETY): automation.validate_automation(
                 {
-                    cv.GenerateID(): cv.declare_id(SafetyTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SafetyTrigger),
                 }
             ),
         }
@@ -86,6 +87,6 @@ async def to_code(config):
 
     # Set up only unique automation trigger (safety) - others are handled by base cover
     for conf in config.get(CONF_ON_SAFETY, []):
-        trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.add_on_safety_trigger(trigger))
         await automation.build_automation(trigger, [], conf)

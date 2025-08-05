@@ -18,7 +18,7 @@ namespace impulse_cover {
 class OnOpenTrigger;
 class OnCloseTrigger;
 class OnIdleTrigger;
-class OnSafetyTrigger;
+class SafetyTrigger;
 
 enum class ImpulseCoverOperation {
   IDLE = 0,
@@ -102,11 +102,11 @@ class ImpulseCover : public cover::Cover, public Component {
   ImpulseCoverOperation get_current_operation() const { return current_operation_; }
   bool is_safety_triggered() const { return safety_triggered_; }
   
-  // Automation triggers
+  // Automation triggers  
   void add_on_open_trigger(Trigger<> *trigger);
   void add_on_close_trigger(Trigger<> *trigger);
   void add_on_idle_trigger(Trigger<> *trigger);
-  void add_on_safety_trigger(Trigger<> *trigger);
+  void add_on_safety_trigger(SafetyTrigger *trigger);
 
  protected:
   // Helper methods for firing triggers
@@ -119,7 +119,7 @@ class ImpulseCover : public cover::Cover, public Component {
   std::vector<Trigger<> *> on_open_triggers_;
   std::vector<Trigger<> *> on_close_triggers_;
   std::vector<Trigger<> *> on_idle_triggers_;
-  std::vector<Trigger<> *> on_safety_triggers_;
+  std::vector<SafetyTrigger *> on_safety_triggers_;
 };
 
 // Specific trigger classes to avoid ID conflicts
@@ -147,9 +147,9 @@ class OnIdleTrigger : public Trigger<> {
   ImpulseCover *parent_;
 };
 
-class OnSafetyTrigger : public Trigger<> {
+class SafetyTrigger : public Trigger<> {
  public:
-  explicit OnSafetyTrigger(ImpulseCover *parent) : parent_(parent) {}
+  explicit SafetyTrigger(ImpulseCover *parent) : parent_(parent) {}
 
  protected:
   ImpulseCover *parent_;

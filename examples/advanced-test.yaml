@@ -96,8 +96,6 @@ cover:
       - light.turn_off: gate_status_led
       - homeassistant.event:
           event: esphome.gate_event
-      - homeassistant.event:
-          event: esphome.gate_event
           data:
             action: closed
             device: "{{ device_name }}"
