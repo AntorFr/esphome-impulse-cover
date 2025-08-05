@@ -25,7 +25,7 @@
     "automation"
   ],
   "codeowners": [
-    "@yourusername"
+    "@AntorFr"
   ],
   "config_schema": {
     "type": "object",
