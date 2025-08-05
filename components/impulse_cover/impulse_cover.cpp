@@ -69,9 +69,9 @@ void ImpulseCover::loop() {
   this->update_position_from_sensors();
 #endif
   
-  // Handle pulse timing
+  // Handle pulse timing - Only send ONE pulse at the start of movement
   if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
-    if (!this->pulse_sent_ && (now - this->last_pulse_time_) >= this->pulse_delay_) {
+    if (!this->pulse_sent_) {
       this->send_pulse();
     }
     
@@ -283,8 +283,8 @@ void ImpulseCover::send_pulse() {
   
   const uint32_t now = millis();
   
-  if (this->pulse_sent_ || (now - this->last_pulse_time_) < this->pulse_delay_) {
-    return;  // Too soon for another pulse
+  if (this->pulse_sent_) {
+    return;  // Pulse already sent for this operation
   }
   
   ESP_LOGD(TAG, "Sending control pulse");
@@ -298,10 +298,7 @@ void ImpulseCover::send_pulse() {
   this->last_pulse_time_ = now;
   this->pulse_sent_ = true;
   
-  // Reset pulse flag after delay
-  this->set_timeout(this->pulse_delay_, [this]() {
-    this->pulse_sent_ = false;
-  });
+  // Note: pulse_sent_ is only reset when starting a new direction or stopping
 }
 
 void ImpulseCover::update_position() {
