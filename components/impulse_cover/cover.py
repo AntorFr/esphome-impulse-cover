@@ -27,7 +27,7 @@ impulse_cover_ns = cg.esphome_ns.namespace("impulse_cover")
 ImpulseCover = impulse_cover_ns.class_("ImpulseCover", cover.Cover, cg.Component)
 
 # Define unique trigger classes only for impulse-specific events
-SafetyTrigger = impulse_cover_ns.class_("SafetyTrigger", automation.Trigger.template())
+SafetyTrigger = impulse_cover_ns.class_("SafetyTrigger", automation.Trigger.template([]))
 
 CONFIG_SCHEMA = (
     cover.cover_schema(ImpulseCover)
