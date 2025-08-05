@@ -1,0 +1,56 @@
+esphome:
+  name: impulse-cover-safety-example
+
+esp32:
+  board: esp32dev
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [ impulse_cover ]
+
+wifi:
+  ssid: "YOUR_WIFI_SSID"
+  password: "YOUR_WIFI_PASSWORD"
+
+api:
+ota:
+  - platform: esphome
+
+logger:
+
+output:
+  - platform: gpio
+    pin: GPIO4
+    id: gate_output
+
+cover:
+  - platform: impulse_cover
+    name: "Portail avec Sécurité"
+    id: main_gate
+    output: gate_output
+    open_duration: 20s
+    close_duration: 18s
+    pulse_delay: 1s
+    safety_timeout: 90s
+    safety_max_cycles: 3
+
+    on_safety:
+      - logger.log:
+          format: "🚨 SÉCURITÉ DÉCLENCHÉE"
+          level: WARN
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    name: "Bouton Reset Sécurité"
+    on_press:
+      - impulse_cover.reset_safety:
+          id: main_gate
+      - logger.log: "🔧 Sécurité réinitialisée"

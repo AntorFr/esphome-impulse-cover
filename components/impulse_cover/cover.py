@@ -30,6 +30,9 @@ ImpulseCover = impulse_cover_ns.class_("ImpulseCover", cover.Cover, cg.Component
 # Define unique trigger classes only for impulse-specific events
 SafetyTrigger = impulse_cover_ns.class_("SafetyTrigger", automation.Trigger.template([]))
 
+# Actions
+ResetSafetyAction = impulse_cover_ns.class_("ResetSafetyAction", automation.Action)
+
 CONFIG_SCHEMA = (
     cover.cover_schema(ImpulseCover)
     .extend(
@@ -90,3 +93,14 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.add_on_safety_trigger(trigger))
         await automation.build_automation(trigger, [], conf)
+
+
+# Action schemas
+@automation.register_action(
+    "impulse_cover.reset_safety",
+    ResetSafetyAction,
+    cv.Schema({cv.Required(CONF_ID): cv.use_id(ImpulseCover)}),
+)
+async def reset_safety_action_to_code(config, action_id, template_arg, _args):
+    var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, var)
