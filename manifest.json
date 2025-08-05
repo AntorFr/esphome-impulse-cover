@@ -1,11 +1,11 @@
 {
   "name": "Impulse Cover",
   "description": "ESPHome component for single-pulse cover control systems",
-  "version": "1.0.0",
+  "version": "1.0.0-beta4",
   "author": "ESPHome Community",
   "license": "MIT",
-  "repository": "https://github.com/yourusername/esphome-impulse-cover",
-  "documentation": "https://github.com/yourusername/esphome-impulse-cover/blob/main/README.md",
+  "repository": "https://github.com/AntorFr/esphome-impulse-cover",
+  "documentation": "https://github.com/AntorFr/esphome-impulse-cover/blob/main/README.md",
   "dependencies": {
     "esphome": ">=2023.12.0"
   },
@@ -25,7 +25,7 @@
     "automation"
   ],
   "codeowners": [
-    "@yourusername"
+    "@AntorFr"
   ],
   "config_schema": {
     "type": "object",
