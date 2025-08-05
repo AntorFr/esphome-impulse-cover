@@ -14,6 +14,12 @@ class BinarySensor;
 #endif
 namespace impulse_cover {
 
+// Forward declarations for trigger classes
+class OnOpenTrigger;
+class OnCloseTrigger;
+class OnIdleTrigger;
+class OnSafetyTrigger;
+
 enum class ImpulseCoverOperation {
   IDLE = 0,
   OPENING = 1,
@@ -114,6 +120,39 @@ class ImpulseCover : public cover::Cover, public Component {
   std::vector<Trigger<> *> on_close_triggers_;
   std::vector<Trigger<> *> on_idle_triggers_;
   std::vector<Trigger<> *> on_safety_triggers_;
+};
+
+// Specific trigger classes to avoid ID conflicts
+class OnOpenTrigger : public Trigger<> {
+ public:
+  explicit OnOpenTrigger(ImpulseCover *parent) : parent_(parent) {}
+
+ protected:
+  ImpulseCover *parent_;
+};
+
+class OnCloseTrigger : public Trigger<> {
+ public:
+  explicit OnCloseTrigger(ImpulseCover *parent) : parent_(parent) {}
+
+ protected:
+  ImpulseCover *parent_;
+};
+
+class OnIdleTrigger : public Trigger<> {
+ public:
+  explicit OnIdleTrigger(ImpulseCover *parent) : parent_(parent) {}
+
+ protected:
+  ImpulseCover *parent_;
+};
+
+class OnSafetyTrigger : public Trigger<> {
+ public:
+  explicit OnSafetyTrigger(ImpulseCover *parent) : parent_(parent) {}
+
+ protected:
+  ImpulseCover *parent_;
 };
 
 }  // namespace impulse_cover

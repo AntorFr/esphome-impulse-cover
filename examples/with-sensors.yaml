@@ -101,12 +101,8 @@ cover:
       - logger.log: "Gate is opening"
       - light.turn_on: status_led
 
-    on_close:
-      - logger.log: "Gate is closing"
-      - light.turn_on: status_led
-
-    on_idle:
-      - logger.log: "Gate movement stopped"
+    on_closed:
+      - logger.log: "Gate is now closed"
       - light.turn_off: status_led
 
     on_safety:

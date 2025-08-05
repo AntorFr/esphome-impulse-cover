@@ -11,7 +11,7 @@ from esphome.const import (
 
 DEPENDENCIES = ["cover"]
 
-# Constants for configuration
+# Constants for configuration - using unique names to avoid conflicts
 CONF_PULSE_DELAY = "pulse_delay"
 CONF_SAFETY_TIMEOUT = "safety_timeout"
 CONF_SAFETY_MAX_CYCLES = "safety_max_cycles"
@@ -19,14 +19,15 @@ CONF_OPEN_SENSOR = "open_sensor"
 CONF_CLOSE_SENSOR = "close_sensor"
 CONF_OPEN_SENSOR_INVERTED = "open_sensor_inverted"
 CONF_CLOSE_SENSOR_INVERTED = "close_sensor_inverted"
-CONF_ON_OPEN = "on_open"
-CONF_ON_CLOSE = "on_close"
-CONF_ON_IDLE = "on_idle"
-CONF_ON_SAFETY = "on_safety"
+# Only unique triggers that don't exist in base ESPHome cover
+CONF_ON_SAFETY = "on_safety"  # Specific to impulse cover safety logic
 
 # Component namespace and class
 impulse_cover_ns = cg.esphome_ns.namespace("impulse_cover")
 ImpulseCover = impulse_cover_ns.class_("ImpulseCover", cover.Cover, cg.Component)
+
+# Define unique trigger classes only for impulse-specific events
+SafetyTrigger = impulse_cover_ns.class_("SafetyTrigger", automation.Trigger.template())
 
 CONFIG_SCHEMA = (
     cover.cover_schema(ImpulseCover)
@@ -42,24 +43,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLOSE_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_OPEN_SENSOR_INVERTED, default=False): cv.boolean,
             cv.Optional(CONF_CLOSE_SENSOR_INVERTED, default=False): cv.boolean,
-            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-                {
-                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
-                }
-            ),
-            cv.Optional(CONF_ON_CLOSE): automation.validate_automation(
-                {
-                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
-                }
-            ),
-            cv.Optional(CONF_ON_IDLE): automation.validate_automation(
-                {
-                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
-                }
-            ),
+            # Only unique trigger not available in base ESPHome cover
             cv.Optional(CONF_ON_SAFETY): automation.validate_automation(
                 {
-                    cv.GenerateID(automation.CONF_TRIGGER_ID): cv.declare_id(automation.Trigger.template()),
+                    cv.GenerateID(): cv.declare_id(SafetyTrigger),
                 }
             ),
         }
@@ -97,27 +84,8 @@ async def to_code(config):
         cg.add(var.set_close_sensor(close_sensor))
         cg.add(var.set_close_sensor_inverted(config[CONF_CLOSE_SENSOR_INVERTED]))
 
-    # Set up automation triggers
-    if CONF_ON_OPEN in config:
-        for conf in config[CONF_ON_OPEN]:
-            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
-            cg.add(var.add_on_open_trigger(trigger))
-            await automation.build_automation(trigger, [], conf)
-
-    if CONF_ON_CLOSE in config:
-        for conf in config[CONF_ON_CLOSE]:
-            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
-            cg.add(var.add_on_close_trigger(trigger))
-            await automation.build_automation(trigger, [], conf)
-
-    if CONF_ON_IDLE in config:
-        for conf in config[CONF_ON_IDLE]:
-            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
-            cg.add(var.add_on_idle_trigger(trigger))
-            await automation.build_automation(trigger, [], conf)
-
-    if CONF_ON_SAFETY in config:
-        for conf in config[CONF_ON_SAFETY]:
-            trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
-            cg.add(var.add_on_safety_trigger(trigger))
-            await automation.build_automation(trigger, [], conf)
+    # Set up only unique automation trigger (safety) - others are handled by base cover
+    for conf in config.get(CONF_ON_SAFETY, []):
+        trigger = cg.new_Pvariable(conf[automation.CONF_TRIGGER_ID])
+        cg.add(var.add_on_safety_trigger(trigger))
+        await automation.build_automation(trigger, [], conf)
