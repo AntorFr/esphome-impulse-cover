@@ -50,15 +50,23 @@ void ImpulseCover::setup() {
 void ImpulseCover::loop() {
   const uint32_t now = millis();
   
+  // Store previous state for change detection
+  float previous_position = this->position;
+  cover::CoverOperation previous_operation = this->current_operation_ == ImpulseCoverOperation::IDLE ? 
+                                            cover::COVER_OPERATION_IDLE : 
+                                            (this->current_operation_ == ImpulseCoverOperation::OPENING ? 
+                                             cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING);
+  
   // Update position based on time if moving
   this->update_position();
   
   // Check safety conditions
   this->check_safety();
   
-  // Handle endstop checks
+  // Handle endstop checks and position updates from sensors
 #ifdef USE_BINARY_SENSOR
   this->handle_endstop();
+  this->update_position_from_sensors();
 #endif
   
   // Handle pulse timing
@@ -80,7 +88,15 @@ void ImpulseCover::loop() {
     }
   }
   
-  this->publish_state();
+  // Only publish state if something changed
+  cover::CoverOperation current_operation = this->current_operation_ == ImpulseCoverOperation::IDLE ? 
+                                           cover::COVER_OPERATION_IDLE : 
+                                           (this->current_operation_ == ImpulseCoverOperation::OPENING ? 
+                                            cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING);
+  
+  if (fabs(this->position - previous_position) > 0.01f || current_operation != previous_operation) {
+    this->publish_state();
+  }
 }
 
 void ImpulseCover::dump_config() {
@@ -348,6 +364,30 @@ void ImpulseCover::handle_endstop() {
       this->stop_movement();
       return;
     }
+  }
+}
+
+void ImpulseCover::update_position_from_sensors() {
+  // Update position based on current sensor states, even when not moving
+  if (this->open_sensor_ != nullptr && this->close_sensor_ != nullptr) {
+    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
+    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
+    
+    if (open_state && !close_state) {
+      // Fully open
+      if (fabs(this->position - 1.0f) > 0.01f) {
+        ESP_LOGD(TAG, "Open sensor active, updating position to 1.0 (was %.2f)", this->position);
+        this->position = 1.0f;
+      }
+    } else if (!open_state && close_state) {
+      // Fully closed
+      if (fabs(this->position - 0.0f) > 0.01f) {
+        ESP_LOGD(TAG, "Close sensor active, updating position to 0.0 (was %.2f)", this->position);
+        this->position = 0.0f;
+      }
+    }
+    // If both sensors are active or both inactive, keep current position
+    // This could indicate a sensor error or intermediate position
   }
 }
 #endif

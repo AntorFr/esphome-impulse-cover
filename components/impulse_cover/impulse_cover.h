@@ -61,6 +61,7 @@ class ImpulseCover : public cover::Cover, public Component {
   void check_safety();
 #ifdef USE_BINARY_SENSOR
   void handle_endstop();
+  void update_position_from_sensors();
 #endif
   bool is_at_target_position();
   
