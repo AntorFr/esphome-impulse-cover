@@ -9,7 +9,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting a bug! Please fill out the information below to help us understand and reproduce the issue.
+        Thank you for reporting a bug! Please fill out the information below to help us understand and
+        reproduce the issue.
 
   - type: checkboxes
     id: pre-checks
@@ -109,7 +110,7 @@ body:
       placeholder: |
         esphome:
           name: my-cover
-        
+
         impulse_cover:
           - platform: impulse_cover
             name: "Gate"

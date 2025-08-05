@@ -15,19 +15,19 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
-    
+
   # Enable version updates for Python (if we have requirements.txt)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"  
+      day: "monday"
       time: "09:30"
     commit-message:
       prefix: "deps:"
       prefix-development: "deps:"
     reviewers:
-      - "berard"
+      - "AntorFR"
     labels:
       - "dependencies"
       - "python"
