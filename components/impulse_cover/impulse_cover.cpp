@@ -1,6 +1,9 @@
 #include "impulse_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include <cmath>
 
 namespace esphome {
@@ -304,6 +307,7 @@ bool ImpulseCover::is_at_target_position() {
   return fabs(this->position - this->target_position_) < tolerance;
 }
 
+#ifdef USE_BINARY_SENSOR
 void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   this->open_sensor_ = sensor;
   if (sensor != nullptr) {
@@ -329,6 +333,7 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
     });
   }
 }
+#endif
 
 }  // namespace impulse_cover
 }  // namespace esphome

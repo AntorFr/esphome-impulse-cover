@@ -32,7 +32,7 @@ captive_portal:
 external_components:
   - source: 
       type: local
-      path: components
+      path: ../components
     components: [ impulse_cover ]
 
 # GPIO Output for sending pulses

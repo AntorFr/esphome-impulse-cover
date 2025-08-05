@@ -26,13 +26,13 @@ captive_portal:
 external_components:
   - source: 
       type: local
-      path: components
+      path: ../components
     components: [ impulse_cover ]
 
 # Minimal configuration without sensors
 output:
   - platform: gpio
-    pin: GPIO12  # Using a non-strapping pin
+    pin: GPIO2  # Using a safe pin
     id: simple_output
 
 # Example sensors (commented out for minimal test)
