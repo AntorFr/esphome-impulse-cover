@@ -1,11 +1,11 @@
 esphome:
   name: impulse-cover-safety-example
-  
+
 esp32:
   board: esp32dev
 
 external_components:
-  - source: 
+  - source:
       type: local
       path: ../components
     components: [ impulse_cover ]
@@ -35,7 +35,7 @@ cover:
     pulse_delay: 1s
     safety_timeout: 90s
     safety_max_cycles: 3
-    
+
     on_safety:
       - logger.log:
           format: "🚨 SÉCURITÉ DÉCLENCHÉE"
