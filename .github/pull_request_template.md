@@ -14,8 +14,8 @@ Please check the type of change your PR introduces:
 
 ## Testing
 Please describe the tests that you ran to verify your changes:
-- [ ] Ran `./test-impulse-cover.sh` validation tests
-- [ ] Ran `./test-impulse-cover.sh --compile` compilation tests
+- [ ] Ran `./create-validated-pr.sh --preview` to validate all configurations
+- [ ] Tested all example configurations with ESPHome
 - [ ] Tested with basic configuration
 - [ ] Tested with sensor configuration  
 - [ ] Tested with partial opening configuration
