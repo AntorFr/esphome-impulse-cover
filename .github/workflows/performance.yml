@@ -183,10 +183,10 @@ jobs:
           # Run all tests multiple times to check for consistency
           for i in {1..3}; do
             echo "Regression test run $i..."
-            
+
             FAILED_CONFIGS=0
             TOTAL_CONFIGS=0
-            
+
             for config in examples/*.yaml; do
               if [ -f "$config" ]; then
                 TOTAL_CONFIGS=$((TOTAL_CONFIGS + 1))
@@ -199,7 +199,7 @@ jobs:
                 fi
               fi
             done
-            
+
             echo "📊 Run $i Results: $((TOTAL_CONFIGS - FAILED_CONFIGS))/$TOTAL_CONFIGS configurations passed"
           done
 
