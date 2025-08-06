@@ -403,7 +403,7 @@ void ImpulseCover::send_pulse_internal_(bool double_pulse) {
       ESP_LOGV(TAG, "Turning output OFF (after first pulse)");
       this->output_->turn_off();
       // Second pulse after a short delay
-      this->set_timeout("double_pulse_second_on", this->pulse_delay_ , [this]() {
+      this->set_timeout("double_pulse_second_on", 2 * this->pulse_delay_ , [this]() {
         ESP_LOGV(TAG, "Turning output ON (second pulse)");
         this->output_->turn_on();
         this->set_timeout("double_pulse_second_off", this->pulse_delay_ , [this]() { 
