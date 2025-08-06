@@ -502,15 +502,36 @@ void ImpulseCover::check_safety_() {
 void ImpulseCover::endstop_reached_(bool open_endstop) {
   const uint32_t now = millis();
   
+  ESP_LOGV(TAG, "endstop_reached_ called - open_endstop=%s", open_endstop ? "true" : "false");
+  ESP_LOGV(TAG, "Current state: position=%.3f, current_operation=%d, current_trigger_operation_=%d", 
+           this->position, static_cast<int>(this->current_operation), static_cast<int>(this->current_trigger_operation_));
+  ESP_LOGV(TAG, "Expected operation for this endstop: %d", 
+           static_cast<int>(open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING));
+  
+  // Set position based on endstop
+  float old_position = this->position;
   this->position = open_endstop ? COVER_OPEN : COVER_CLOSED;
+  ESP_LOGD(TAG, "Position updated from %.3f to %.3f (%s endstop)", 
+           old_position, this->position, open_endstop ? "OPEN" : "CLOSE");
   
   // Only act if endstop activated while moving in the right direction
-  if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
+  bool is_correct_direction = (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING));
+  ESP_LOGV(TAG, "Direction check: is_correct_direction=%s", is_correct_direction ? "true" : "false");
+  
+  if (is_correct_direction) {
     float dur = (now - this->start_dir_time_) / 1e3f;
     ESP_LOGI(TAG, "'%s' - %s endstop reached. Took %.1fs.",
              this->get_name().c_str(), open_endstop ? "Open" : "Close", dur);
+  } else {
+    ESP_LOGD(TAG, "Ignoring %s endstop - not moving in expected direction (current_trigger=%d, expected=%d)", 
+             open_endstop ? "OPEN" : "CLOSE", 
+             static_cast<int>(this->current_trigger_operation_),
+             static_cast<int>(open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING));
   }
+  
+  ESP_LOGV(TAG, "Stopping operation and setting to IDLE");
   this->set_current_operation_(COVER_OPERATION_IDLE, false);
+  ESP_LOGV(TAG, "endstop_reached_ completed");
 }
 
 bool ImpulseCover::get_sensor_state_(binary_sensor::BinarySensor *sensor, bool inverted) {
