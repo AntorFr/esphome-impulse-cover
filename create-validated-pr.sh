@@ -128,6 +128,18 @@ with open('manifest.json', 'w') as f:
     fi
 }
 
+# Fonction pour mettre à jour la version dans le fichier VERSION
+update_version_file() {
+    local new_version="$1"
+    if [ -f "VERSION" ]; then
+        echo "$new_version" > VERSION
+        echo "📦 Fichier VERSION mis à jour avec la version $new_version"
+    else
+        echo "❌ Fichier VERSION non trouvé"
+        return 1
+    fi
+}
+
 # Fonction pour suggérer la prochaine version
 suggest_next_version() {
     local current="$1"
@@ -210,7 +222,7 @@ echo -e "\n${CYAN}📦 Version sur main: ${CURRENT_VERSION}${NC}"
 # Analyser les commits pour suggestion
 commits_preview=$(git log --oneline main..dev --format="- %s" | head -10)
 
-# Demander si on veut créer une nouvelle version
+# Demander si on veut créer une nouvelle version (toujours proposer)
 if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
     echo -e "\n${YELLOW}🏷️ GESTION DES VERSIONS${NC}"
     echo "────────────────────────────────────────"
@@ -241,6 +253,42 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
         fi
         
         echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
+        CREATE_VERSION=true
+    else
+        CREATE_VERSION=false
+    fi
+elif [ "$CREATE_VERSION" = false ]; then
+    # Proposer la création de version même si --version n'a pas été utilisé
+    echo -e "\n${YELLOW}🏷️ GESTION DES VERSIONS${NC}"
+    echo "────────────────────────────────────────"
+    
+    # Suggérer la prochaine version
+    SUGGESTED_VERSION=$(suggest_next_version "$CURRENT_VERSION" "$commits_preview")
+    echo -e "Version sur main: ${CYAN}$CURRENT_VERSION${NC}"
+    echo -e "Version suggérée: ${GREEN}$SUGGESTED_VERSION${NC}"
+    echo -e "\nChangements depuis la dernière version:"
+    echo "$commits_preview" | head -5
+    echo ""
+    
+    read -p "Voulez-vous créer une nouvelle version ? (o/N): " create_version_response
+    if [[ "$create_version_response" =~ ^[oO]$ ]]; then
+        read -p "Numéro de version (format x.y.z) [$SUGGESTED_VERSION]: " version_input
+        NEW_VERSION="${version_input:-$SUGGESTED_VERSION}"
+        
+        # Valider le format
+        if ! validate_version_format "$NEW_VERSION"; then
+            echo -e "${RED}❌ Format de version invalide. Utilisez le format x.y.z ou x.y.z-suffix (ex: 1.2.3 ou 1.2.3-beta1)${NC}"
+            exit 1
+        fi
+        
+        # Vérifier que la nouvelle version est supérieure
+        if ! version_greater_than "$NEW_VERSION" "$CURRENT_VERSION"; then
+            echo -e "${RED}❌ La nouvelle version ($NEW_VERSION) doit être supérieure à la version actuelle ($CURRENT_VERSION)${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
+        CREATE_VERSION=true
     else
         CREATE_VERSION=false
     fi
@@ -467,14 +515,16 @@ if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     local_version=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0")
     
     if [ "$local_version" != "$NEW_VERSION" ]; then
-        # Mettre à jour le manifest
+        # Mettre à jour le manifest et le fichier VERSION
         update_manifest_version "$NEW_VERSION"
+        update_version_file "$NEW_VERSION"
         
         # Committer les changements de version
-        git add manifest.json
+        git add manifest.json VERSION
         git commit -m "chore: Bump version to $NEW_VERSION
 
 - Update manifest.json with new version
+- Update VERSION file to match manifest
 - Ready for release tagging"
         
         echo -e "${GREEN}✅ Version mise à jour et commitée${NC}"
@@ -724,10 +774,13 @@ if [ $? -eq 0 ]; then
     
     # Créer le tag de version après merge si une version est spécifiée
     if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
-        print_subsection "🏷️ Création du tag de version"
-        echo "Le tag $NEW_VERSION sera créé automatiquement après le merge de la PR"
-        echo "Pour créer le tag manuellement plus tard:"
-        echo "  git checkout main && git pull && git tag v$NEW_VERSION && git push origin v$NEW_VERSION"
+        print_subsection "🏷️ Création automatique du tag de version"
+        echo "Le tag $NEW_VERSION sera créé automatiquement par GitHub Actions après le merge de la PR"
+        echo "Le workflow 'auto-tag.yml' détectera le commit 'chore: Bump version to $NEW_VERSION' et créera:"
+        echo "  - Le tag Git v$NEW_VERSION"
+        echo "  - Une release GitHub avec les notes de version"
+        echo ""
+        echo "Aucune action manuelle nécessaire !"
     fi
     
     # Résumé final
@@ -739,25 +792,7 @@ if [ $? -eq 0 ]; then
     
     if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
         echo -e "${GREEN}✅ Version $NEW_VERSION configurée${NC}"
-        
-        # Créer un script pour le tagging post-merge
-        cat > ".post-merge-tag.sh" << EOF
-#!/bin/bash
-# Auto-generated script for post-merge tagging
-echo "🏷️ Création du tag v$NEW_VERSION..."
-git checkout main
-git pull origin main
-git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION
-
-$(echo "$commits_list" | head -5)
-
-Auto-generated by create-validated-pr.sh"
-git push origin "v$NEW_VERSION"
-echo "✅ Tag v$NEW_VERSION créé et poussé"
-rm "\$0"  # Self-delete
-EOF
-        chmod +x ".post-merge-tag.sh"
-        echo -e "${CYAN}📝 Script de tagging post-merge créé: .post-merge-tag.sh${NC}"
+        echo -e "${CYAN}🤖 Le tag sera créé automatiquement par GitHub Actions${NC}"
     fi
     
     echo ""

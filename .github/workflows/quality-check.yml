@@ -72,11 +72,33 @@ jobs:
         run: |
           pip install esphome==${{ env.ESPHOME_VERSION }}
 
-      - name: Make test script executable
-        run: chmod +x test-impulse-cover.sh
+      - name: Test all example configurations
+        run: |
+          echo "🧪 Testing all example configurations..."
+          FAILED_CONFIGS=0
+          TOTAL_CONFIGS=0
 
-      - name: Run comprehensive tests
-        run: ./test-impulse-cover.sh
+          for config in examples/*.yaml; do
+            if [ -f "$config" ]; then
+              TOTAL_CONFIGS=$((TOTAL_CONFIGS + 1))
+              echo "Testing $config..."
+              if esphome config "$config"; then
+                echo "✅ $config - PASSED"
+              else
+                echo "❌ $config - FAILED"
+                FAILED_CONFIGS=$((FAILED_CONFIGS + 1))
+              fi
+            fi
+          done
+
+          echo "📊 Results: $((TOTAL_CONFIGS - FAILED_CONFIGS))/$TOTAL_CONFIGS configurations passed"
+
+          if [ $FAILED_CONFIGS -gt 0 ]; then
+            echo "❌ $FAILED_CONFIGS configuration(s) failed"
+            exit 1
+          else
+            echo "✅ All configurations passed!"
+          fi
 
   # Job 3: Compilation multi-plateforme
   multi-platform-compilation:

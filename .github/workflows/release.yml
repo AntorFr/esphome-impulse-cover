@@ -30,12 +30,59 @@ jobs:
 
       - name: Run validation tests
         run: |
-          chmod +x test-impulse-cover.sh
-          ./test-impulse-cover.sh
+          echo "🧪 Testing all example configurations..."
+          FAILED_CONFIGS=0
+          TOTAL_CONFIGS=0
+
+          for config in examples/*.yaml; do
+            if [ -f "$config" ]; then
+              TOTAL_CONFIGS=$((TOTAL_CONFIGS + 1))
+              echo "Testing $config..."
+              if esphome config "$config"; then
+                echo "✅ $config - PASSED"
+              else
+                echo "❌ $config - FAILED"
+                FAILED_CONFIGS=$((FAILED_CONFIGS + 1))
+              fi
+            fi
+          done
+
+          echo "📊 Results: $((TOTAL_CONFIGS - FAILED_CONFIGS))/$TOTAL_CONFIGS configurations passed"
+
+          if [ $FAILED_CONFIGS -gt 0 ]; then
+            echo "❌ $FAILED_CONFIGS configuration(s) failed"
+            exit 1
+          else
+            echo "✅ All configurations passed!"
+          fi
 
       - name: Run compilation tests
         run: |
-          ./test-impulse-cover.sh --compile
+          echo "🏗️ Compiling example configurations..."
+          FAILED_COMPILES=0
+          TOTAL_COMPILES=0
+
+          for config in examples/*.yaml; do
+            if [ -f "$config" ]; then
+              TOTAL_COMPILES=$((TOTAL_COMPILES + 1))
+              echo "Compiling $config..."
+              if timeout 300 esphome compile "$config"; then
+                echo "✅ $config - COMPILED"
+              else
+                echo "❌ $config - COMPILATION FAILED"
+                FAILED_COMPILES=$((FAILED_COMPILES + 1))
+              fi
+            fi
+          done
+
+          echo "📊 Results: $((TOTAL_COMPILES - FAILED_COMPILES))/$TOTAL_COMPILES configurations compiled"
+
+          if [ $FAILED_COMPILES -gt 0 ]; then
+            echo "❌ $FAILED_COMPILES compilation(s) failed"
+            exit 1
+          else
+            echo "✅ All compilations passed!"
+          fi
 
       - name: Extract version from tag
         id: version
