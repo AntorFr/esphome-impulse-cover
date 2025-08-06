@@ -253,7 +253,6 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
         fi
         
         echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
-<<<<<<< HEAD
         CREATE_VERSION=true
     else
         CREATE_VERSION=false
@@ -516,7 +515,6 @@ if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     local_version=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0")
     
     if [ "$local_version" != "$NEW_VERSION" ]; then
-<<<<<<< HEAD
         # Mettre à jour le manifest et le fichier VERSION
         update_manifest_version "$NEW_VERSION"
         update_version_file "$NEW_VERSION"
