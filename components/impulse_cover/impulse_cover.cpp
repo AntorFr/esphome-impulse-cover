@@ -285,7 +285,7 @@ void ImpulseCover::recompute_position_() {
     return;
 
   const uint32_t now = millis();
-  const uint32_t elapsed = now - this->start_dir_time_;
+  const uint32_t elapsed = now - this->last_recompute_time_;
   
   float dir;
   float action_dur;
