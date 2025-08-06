@@ -1,6 +1,7 @@
 #include "impulse_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -11,6 +12,8 @@ namespace impulse_cover {
 
 static const char *const TAG = "impulse_cover";
 
+using namespace esphome::cover;
+
 void ImpulseCover::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Impulse Cover...");
   
@@ -20,125 +23,63 @@ void ImpulseCover::setup() {
     return;
   }
   
-  // Initialize position based on sensors if available
+  // Initialize state
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    restore->apply(this);
+  } else {
+    this->position = 0.5f;  // Default to half open if no restore state
+  }
+  
+  this->current_operation = COVER_OPERATION_IDLE;
+  this->current_trigger_operation_ = COVER_OPERATION_IDLE;
+
 #ifdef USE_BINARY_SENSOR
-  bool has_open_sensor = this->open_sensor_ != nullptr;
-  bool has_close_sensor = this->close_sensor_ != nullptr;
-  
-  if (has_close_sensor) {
-    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
-    if (close_state) {
-      this->position = 0.0f;  // Fully closed
-      this->has_initial_state_ = true;
-      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active)");
-    } else {
-      this->position = 0.5f;  // Unknown position if only close sensor and not active
-      ESP_LOGD(TAG, "Initial state: UNKNOWN (close sensor inactive, no open sensor)");
-    }
+  // Initialize position from sensors if available
+  if (this->open_sensor_ != nullptr && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_)) {
+    this->position = COVER_OPEN;
+    this->has_initial_state_ = true;
+    ESP_LOGD(TAG, "Initial state: OPEN (open sensor active)");
+  } else if (this->close_sensor_ != nullptr && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_)) {
+    this->position = COVER_CLOSED;
+    this->has_initial_state_ = true;
+    ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active)");
   }
-  
-  if (has_open_sensor) {
-    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
-    if (open_state) {
-      this->position = 1.0f;  // Fully open
-      this->has_initial_state_ = true;
-      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active)");
-    }
-  }
-  
-  // Si les deux capteurs sont disponibles, logique plus précise
-  if (has_open_sensor && has_close_sensor) {
-    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
-    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
-    
-    if (open_state && !close_state) {
-      this->position = 1.0f;  // Fully open
-      this->has_initial_state_ = true;
-      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active, close sensor inactive)");
-    } else if (!open_state && close_state) {
-      this->position = 0.0f;  // Fully closed
-      this->has_initial_state_ = true;
-      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active, open sensor inactive)");
-    } else if (open_state && close_state) {
-      this->position = 0.5f;  // Error state
-      ESP_LOGW(TAG, "Initial state: ERROR (both sensors active)");
-    } else {
-      this->position = 0.5f;  // Unknown position
-      ESP_LOGD(TAG, "Initial state: UNKNOWN (both sensors inactive)");
-    }
-  }
-  
-  // Si aucun capteur configuré
-  if (!has_open_sensor && !has_close_sensor) {
-    this->position = 0.5f;  // Unknown position
-    ESP_LOGD(TAG, "Initial state: UNKNOWN (no sensors configured)");
-  }
-#else
-  // No sensors, start at unknown position
-  this->position = 0.5f;
-  ESP_LOGD(TAG, "Initial state: UNKNOWN (sensors not compiled)");
 #endif
   
+  this->start_dir_time_ = this->last_recompute_time_ = millis();
   ESP_LOGCONFIG(TAG, "Impulse Cover setup complete");
 }
 
 void ImpulseCover::loop() {
+  if (this->current_operation == COVER_OPERATION_IDLE)
+    return;
+    
   const uint32_t now = millis();
   
-  // Store previous state for change detection
-  float previous_position = this->position;
-  cover::CoverOperation previous_operation = this->current_operation_ == ImpulseCoverOperation::IDLE ? 
-                                            cover::COVER_OPERATION_IDLE : 
-                                            (this->current_operation_ == ImpulseCoverOperation::OPENING ? 
-                                             cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING);
-  
-  // Update position based on time if moving
-  this->update_position();
+  // Recompute position every loop cycle
+  this->recompute_position_();
   
   // Check safety conditions
-  this->check_safety();
+  this->check_safety_();
   
-  // Handle endstop checks and position updates from sensors
-#ifdef USE_BINARY_SENSOR
-  this->handle_endstop();
-  this->update_position_from_sensors();
-#endif
-  
-  // Handle pulse timing - Only send ONE pulse at the start of movement
-  if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
-    if (!this->pulse_sent_) {
-      this->send_pulse();
-    }
-    
-    // Check if we should reverse direction or stop
-    if (this->pending_reverse_ && (now - this->last_pulse_time_) >= this->pulse_delay_) {
-      this->pending_reverse_ = false;
-      this->start_direction(this->target_operation_ == ImpulseCoverOperation::OPENING ? 
-                           cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING);
-    }
-    
-    // Check if operation is complete
-    if (this->is_at_target_position()) {
-      this->stop_movement();
+  // If we initiated the move, check if we reached target or safety limits
+  if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
+    if (this->is_at_target_()) {
+      ESP_LOGD(TAG, "Target position reached, stopping movement");
+      this->start_direction_(COVER_OPERATION_IDLE);
+    } else if (now - this->start_dir_time_ > this->safety_timeout_) {
+      ESP_LOGW(TAG, "Safety timeout reached, stopping movement");
+      this->safety_triggered_ = true;
+      this->fire_on_safety_triggers_();
+      this->start_direction_(COVER_OPERATION_IDLE);
     }
   }
   
-  // Auto-reset safety cycle count after 30 seconds of inactivity
-  if (this->current_operation_ == ImpulseCoverOperation::IDLE && 
-      this->safety_cycle_count_ > 0 && 
-      (now - this->last_direction_change_) > 30000) {
-    ESP_LOGD(TAG, "Auto-resetting safety cycle count after inactivity");
-    this->safety_cycle_count_ = 0;
-  }
-  
-  // Only publish state if something changed
-  cover::CoverOperation current_operation = this->current_operation_ == ImpulseCoverOperation::IDLE ? 
-                                           cover::COVER_OPERATION_IDLE : 
-                                           (this->current_operation_ == ImpulseCoverOperation::OPENING ? 
-                                            cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING);
-  
-  if (fabs(this->position - previous_position) > 0.01f || current_operation != previous_operation) {
-    this->publish_state();
+  // Publish state at regular intervals
+  if (now - this->last_publish_time_ > 1000) {  // Every 1 second
+    this->publish_state(false);
+    this->last_publish_time_ = now;
   }
 }
 
@@ -168,7 +109,7 @@ cover::CoverTraits ImpulseCover::get_traits() {
   traits.set_supports_tilt(false);
   traits.set_supports_stop(true);
 #ifdef USE_BINARY_SENSOR
-  traits.set_is_assumed_state(this->open_sensor_ == nullptr || this->close_sensor_ == nullptr);
+  traits.set_is_assumed_state(this->open_sensor_ == nullptr && this->close_sensor_ == nullptr);
 #else
   traits.set_is_assumed_state(true);
 #endif
@@ -181,305 +122,323 @@ void ImpulseCover::control(const cover::CoverCall &call) {
     return;
   }
 
-  // Handle stop command first
+  // Stop action logic
   if (call.get_stop()) {
     ESP_LOGD(TAG, "Stop command received");
-    if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
-      this->send_pulse();  // Stop current movement
-    }
+    this->start_direction_(COVER_OPERATION_IDLE);
     return;
   }
-
-  // Handle position commands
-  if (call.get_position().has_value()) {
-    float target = *call.get_position();
-    ESP_LOGD(TAG, "Position command: %.2f", target);
-    
-    this->target_position_ = target;
-    
-    if (target > this->position + 0.01f) {
-      // Need to open
-      this->target_operation_ = ImpulseCoverOperation::OPENING;
-      this->start_direction(cover::COVER_OPERATION_OPENING);
-    } else if (target < this->position - 0.01f) {
-      // Need to close
-      this->target_operation_ = ImpulseCoverOperation::CLOSING;
-      this->start_direction(cover::COVER_OPERATION_CLOSING);
-    }
-    return;
-  }
-
-  // Handle toggle command
+  
+  // Toggle action logic
   if (call.get_toggle().has_value()) {
-    ESP_LOGD(TAG, "Toggle command received");
-    
-    if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
-      // Currently moving, stop it
-      this->send_pulse();
+    if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
+      this->start_direction_(COVER_OPERATION_IDLE);
     } else {
-      // Currently idle, toggle based on position
-      if (this->position < 0.5f) {
-        // More closed than open, so open
-        this->target_position_ = 1.0f;
-        this->target_operation_ = ImpulseCoverOperation::OPENING;
-        this->start_direction(cover::COVER_OPERATION_OPENING);
+      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
+        this->target_position_ = COVER_OPEN;
+        this->start_direction_(COVER_OPERATION_OPENING);
       } else {
-        // More open than closed, so close
-        this->target_position_ = 0.0f;
-        this->target_operation_ = ImpulseCoverOperation::CLOSING;
-        this->start_direction(cover::COVER_OPERATION_CLOSING);
+        this->target_position_ = COVER_CLOSED;
+        this->start_direction_(COVER_OPERATION_CLOSING);
       }
+    }
+    return;
+  }
+
+  // Position command
+  if (call.get_position().has_value()) {
+    auto pos = *call.get_position();
+    if (pos == this->position) {
+      // Already at target
+      if (this->current_operation != COVER_OPERATION_IDLE || 
+          this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
+        this->start_direction_(COVER_OPERATION_IDLE);
+      }
+    } else {
+      this->target_position_ = pos;
+      this->start_direction_(pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING);
     }
     return;
   }
 }
 
-void ImpulseCover::start_direction(cover::CoverOperation dir) {
+// Main control methods based on impulse cover logic
+void ImpulseCover::start_direction_(cover::CoverOperation dir) {
   if (this->safety_triggered_) {
     ESP_LOGW(TAG, "Cannot start movement: safety triggered");
     return;
   }
 
-  const uint32_t now = millis();
+  // Determine what type of pulse to send based on current state and desired operation
+  bool send_pulse = false;
+  bool send_double_pulse = false;
   
-  // Prevent rapid direction changes
-  if ((now - this->last_direction_change_) < this->pulse_delay_) {
-    ESP_LOGD(TAG, "Direction change too rapid, delaying");
-    return;
-  }
-  
-  // If already moving in opposite direction, need to stop first then reverse
-  if ((dir == cover::COVER_OPERATION_OPENING && this->current_operation_ == ImpulseCoverOperation::CLOSING) ||
-      (dir == cover::COVER_OPERATION_CLOSING && this->current_operation_ == ImpulseCoverOperation::OPENING)) {
-    ESP_LOGD(TAG, "Reversing direction, stopping first");
-    this->pending_reverse_ = true;
-    this->target_operation_ = (dir == cover::COVER_OPERATION_OPENING) ? 
-                             ImpulseCoverOperation::OPENING : ImpulseCoverOperation::CLOSING;
-    this->send_pulse();  // Stop current movement
-    return;
-  }
-  
-  // If already moving in same direction, continue
-  if ((dir == cover::COVER_OPERATION_OPENING && this->current_operation_ == ImpulseCoverOperation::OPENING) ||
-      (dir == cover::COVER_OPERATION_CLOSING && this->current_operation_ == ImpulseCoverOperation::CLOSING)) {
-    ESP_LOGD(TAG, "Already moving in requested direction");
-    return;
-  }
-  
-  // Start new movement
-  this->current_operation_ = (dir == cover::COVER_OPERATION_OPENING) ? 
-                            ImpulseCoverOperation::OPENING : ImpulseCoverOperation::CLOSING;
-  this->operation_start_time_ = now;
-  this->last_direction_change_ = now;
-  this->pulse_sent_ = false;
-  this->start_position_ = this->position;  // Store starting position for correct calculation
-  
-  // Increment safety cycle count for rapid direction changes
-  this->safety_cycle_count_++;
-  ESP_LOGD(TAG, "Safety cycle count: %u/%u", this->safety_cycle_count_, this->safety_max_cycles_);
-  
-  // Fire appropriate automation triggers
-  if (dir == cover::COVER_OPERATION_OPENING) {
-    this->fire_on_open_triggers_();
-  } else if (dir == cover::COVER_OPERATION_CLOSING) {
-    this->fire_on_close_triggers_();
-  }
-  
-  ESP_LOGD(TAG, "Starting %s operation from position %.2f to %.2f", 
-           this->current_operation_ == ImpulseCoverOperation::OPENING ? "OPEN" : "CLOSE",
-           this->start_position_, this->target_position_);
-}
-
-void ImpulseCover::stop_movement() {
-  if (this->current_operation_ != ImpulseCoverOperation::IDLE) {
-    ESP_LOGD(TAG, "Stopping movement");
-    
-    // Ensure position matches target when stopping
-    if (this->is_at_target_position()) {
-      this->position = this->target_position_;
-      ESP_LOGD(TAG, "Movement completed, position set to target: %.2f", this->position);
+  if (dir == COVER_OPERATION_IDLE) {
+    // Stop command
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      ESP_LOGD(TAG, "Stopping movement - sending single pulse");
+      send_pulse = true;
     }
-    
-    this->current_operation_ = ImpulseCoverOperation::IDLE;
-    this->target_operation_ = ImpulseCoverOperation::IDLE;
-    this->pending_reverse_ = false;
-    this->pulse_sent_ = false;
-    
-    // Fire idle trigger when movement stops
+  } else if (dir == COVER_OPERATION_OPENING) {
+    if (this->position >= COVER_OPEN - 0.01f) {
+      // Already fully open - nothing to do
+      ESP_LOGD(TAG, "Already fully open - no pulse needed");
+    } else if (this->position <= COVER_CLOSED + 0.01f) {
+      // Fully closed, want to open - single pulse
+      ESP_LOGD(TAG, "Closed to open - sending single pulse");
+      send_pulse = true;
+    } else {
+      // Partially open
+      if (this->last_operation_ != COVER_OPERATION_OPENING) {
+        // Different direction from previous - single pulse
+        ESP_LOGD(TAG, "Partial position, direction change - sending single pulse");
+        send_pulse = true;
+      } else {
+        // Same direction as before - double pulse
+        ESP_LOGD(TAG, "Partial position, same direction - sending double pulse");
+        send_double_pulse = true;
+      }
+    }
+  } else if (dir == COVER_OPERATION_CLOSING) {
+    if (this->position <= COVER_CLOSED + 0.01f) {
+      // Already fully closed - nothing to do
+      ESP_LOGD(TAG, "Already fully closed - no pulse needed");
+    } else if (this->position >= COVER_OPEN - 0.01f) {
+      // Fully open, want to close - single pulse
+      ESP_LOGD(TAG, "Open to close - sending single pulse");
+      send_pulse = true;
+    } else {
+      // Partially open
+      if (this->last_operation_ != COVER_OPERATION_CLOSING) {
+        // Different direction from previous - single pulse
+        ESP_LOGD(TAG, "Partial position, direction change - sending single pulse");
+        send_pulse = true;
+      } else {
+        // Same direction as before - double pulse
+        ESP_LOGD(TAG, "Partial position, same direction - sending double pulse");
+        send_double_pulse = true;
+      }
+    }
+  }
+
+  // Execute the appropriate pulse sequence
+  if (send_double_pulse) {
+    this->send_double_pulse_();
+    this->safety_cycle_count_ += 2;  // Double pulse counts as 2 cycles
+  } else if (send_pulse) {
+    this->send_pulse_();
+    this->safety_cycle_count_++;
+  }
+
+  // Update operation state
+  this->set_current_operation_(dir, true);
+  
+  // Log and fire triggers
+  if (dir != COVER_OPERATION_IDLE) {
+    ESP_LOGD(TAG, "Starting %s operation to %.2f (cycle %u/%u)", 
+             dir == COVER_OPERATION_OPENING ? "OPEN" : "CLOSE",
+             this->target_position_,
+             this->safety_cycle_count_, this->safety_max_cycles_);
+             
+    // Fire appropriate triggers
+    if (dir == COVER_OPERATION_OPENING) {
+      this->fire_on_open_triggers_();
+    } else if (dir == COVER_OPERATION_CLOSING) {
+      this->fire_on_close_triggers_();
+    }
+  } else {
+    ESP_LOGD(TAG, "Stopping movement");
     this->fire_on_idle_triggers_();
   }
 }
 
-void ImpulseCover::send_pulse() {
-  if (this->output_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot send pulse: output not configured");
-    return;
+void ImpulseCover::set_current_operation_(cover::CoverOperation operation, bool is_triggered) {
+  if (is_triggered) {
+    this->current_trigger_operation_ = operation;
   }
+  
+  auto now = millis();
+  this->current_operation = operation;
+  this->start_dir_time_ = this->last_recompute_time_ = now;
+  this->pulse_sent_ = false;
+  
+  if (operation != COVER_OPERATION_IDLE) {
+    this->last_operation_ = operation;
+  }
+  
+  this->publish_state();
+  this->last_publish_time_ = now;
+}
+
+void ImpulseCover::recompute_position_() {
+  if (this->current_operation == COVER_OPERATION_IDLE)
+    return;
+
+  const uint32_t now = millis();
+  const uint32_t elapsed = now - this->start_dir_time_;
+  
+  float dir;
+  float action_dur;
+  
+  switch (this->current_operation) {
+    case COVER_OPERATION_OPENING:
+      dir = 1.0f;
+      action_dur = this->open_duration_;
+      break;
+    case COVER_OPERATION_CLOSING:
+      dir = -1.0f;
+      action_dur = this->close_duration_;
+      break;
+    default:
+      return;
+  }
+  
+  // Calculate position based on time
+  float progress = std::min(1.0f, static_cast<float>(elapsed) / action_dur);
+  float start_pos = (this->current_operation == COVER_OPERATION_OPENING) ? 
+                    (this->target_position_ - (this->target_position_ - this->position)) :
+                    (this->target_position_ + (this->position - this->target_position_));
+  
+  this->position = start_pos + (this->target_position_ - start_pos) * progress;
+  
+  // Clamp position
+  if (this->position < COVER_CLOSED) this->position = COVER_CLOSED;
+  if (this->position > COVER_OPEN) this->position = COVER_OPEN;
+  
+  this->last_recompute_time_ = now;
+}
+
+bool ImpulseCover::is_at_target_() const {
+  const float tolerance = 0.01f;  // 1% tolerance
+  
+  switch (this->current_trigger_operation_) {
+    case COVER_OPERATION_OPENING:
+      return this->position >= this->target_position_ - tolerance;
+    case COVER_OPERATION_CLOSING:
+      return this->position <= this->target_position_ + tolerance;
+    case COVER_OPERATION_IDLE:
+      return this->current_operation == COVER_OPERATION_IDLE;
+    default:
+      return true;
+  }
+}
+
+// Private helper methods
+void ImpulseCover::send_pulse_() {
+  this->send_pulse_internal_(false);
+}
+
+void ImpulseCover::send_double_pulse_() {
+  this->send_pulse_internal_(true);
+}
+
+void ImpulseCover::send_pulse_internal_(bool double_pulse) {
+  if (this->output_ == nullptr || this->pulse_sent_) return;
   
   const uint32_t now = millis();
   
-  if (this->pulse_sent_) {
-    return;  // Pulse already sent for this operation
+  // Check if enough time has passed since last pulse
+  if ((now - this->last_pulse_time_) < this->pulse_delay_) {
+    const char* pulse_type = double_pulse ? "double" : "single";
+    ESP_LOGD(TAG, "Pulse too rapid, delaying %s pulse", pulse_type);
+    
+    std::string timeout_name = double_pulse ? "double_pulse_delay" : "single_pulse_delay";
+    this->set_timeout(timeout_name, this->pulse_delay_ - (now - this->last_pulse_time_), [this, double_pulse]() {
+      this->send_pulse_internal_(double_pulse);
+    });
+    return;
   }
   
-  ESP_LOGD(TAG, "Sending control pulse");
+  if (double_pulse) {
+    ESP_LOGD(TAG, "Sending double control pulse");
+    
+    // First pulse
+    this->output_->turn_on();
+    this->set_timeout(100, [this]() { 
+      this->output_->turn_off();
+      // Second pulse after a short delay
+      this->set_timeout(200, [this]() {
+        this->output_->turn_on();
+        this->set_timeout(100, [this]() { this->output_->turn_off(); });
+      });
+    });
+  } else {
+    ESP_LOGD(TAG, "Sending control pulse");
+    
+    this->output_->turn_on();
+    this->set_timeout(100, [this]() { this->output_->turn_off(); });
+  }
   
-  // Send pulse (turn on briefly then off)
-  this->output_->turn_on();
-  this->set_timeout(100, [this]() {
-    this->output_->turn_off();
-  });
-  
-  this->last_pulse_time_ = now;
+  this->last_pulse_time_ = millis();
   this->pulse_sent_ = true;
-  
-  // Note: pulse_sent_ is only reset when starting a new direction or stopping
 }
 
-void ImpulseCover::update_position() {
-  if (this->current_operation_ == ImpulseCoverOperation::IDLE) {
+void ImpulseCover::check_safety_() {
+  if (this->current_operation == COVER_OPERATION_IDLE) {
     return;
   }
   
-  const uint32_t now = millis();
-  const uint32_t elapsed = now - this->operation_start_time_;
-  
-  float progress = 0.0f;
-  
-  if (this->current_operation_ == ImpulseCoverOperation::OPENING) {
-    progress = static_cast<float>(elapsed) / static_cast<float>(this->open_duration_);
-    progress = std::min(1.0f, progress);  // Clamp to [0,1]
-    // Calculate position based on start and target
-    this->position = this->start_position_ + (this->target_position_ - this->start_position_) * progress;
-    this->position = std::min(1.0f, std::max(0.0f, this->position));  // Clamp to [0,1]
-  } else if (this->current_operation_ == ImpulseCoverOperation::CLOSING) {
-    progress = static_cast<float>(elapsed) / static_cast<float>(this->close_duration_);
-    progress = std::min(1.0f, progress);  // Clamp to [0,1]
-    // Calculate position based on start and target
-    this->position = this->start_position_ + (this->target_position_ - this->start_position_) * progress;
-    this->position = std::min(1.0f, std::max(0.0f, this->position));  // Clamp to [0,1]
-  }
-  
-  this->last_position_update_ = now;
-}
-
-void ImpulseCover::check_safety() {
-  if (this->current_operation_ == ImpulseCoverOperation::IDLE) {
-    return;
-  }
-  
-  const uint32_t now = millis();
-  const uint32_t elapsed = now - this->operation_start_time_;
-  
-  // Check timeout
-  if (elapsed > this->safety_timeout_) {
-    ESP_LOGW(TAG, "Safety timeout triggered after %ums", elapsed);
-    this->safety_triggered_ = true;
-    this->fire_on_safety_triggers_();
-    this->stop_movement();
-    return;
-  }
-  
-  // Check cycle count
+  // Check cycle count safety
   if (this->safety_cycle_count_ >= this->safety_max_cycles_) {
     ESP_LOGW(TAG, "Safety max cycles triggered (%u cycles)", this->safety_cycle_count_);
     this->safety_triggered_ = true;
     this->fire_on_safety_triggers_();
-    this->stop_movement();
+    this->start_direction_(COVER_OPERATION_IDLE);
     return;
+  }
+  
+  // Auto-reset safety cycle count after period of inactivity
+  const uint32_t now = millis();
+  if (this->current_operation == COVER_OPERATION_IDLE && 
+      this->safety_cycle_count_ > 0 && 
+      (now - this->start_dir_time_) > 30000) {
+    ESP_LOGD(TAG, "Auto-resetting safety cycle count after inactivity");
+    this->safety_cycle_count_ = 0;
   }
 }
 
 #ifdef USE_BINARY_SENSOR
-void ImpulseCover::handle_endstop() {
-  if (this->current_operation_ == ImpulseCoverOperation::IDLE) {
-    return;
+void ImpulseCover::endstop_reached_(bool open_endstop) {
+  const uint32_t now = millis();
+  
+  this->position = open_endstop ? COVER_OPEN : COVER_CLOSED;
+  
+  // Only act if endstop activated while moving in the right direction
+  if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
+    float dur = (now - this->start_dir_time_) / 1e3f;
+    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.",
+             this->get_name().c_str(), open_endstop ? "Open" : "Close", dur);
+    
   }
   
-  // Check open sensor
-  if (this->open_sensor_ != nullptr && this->current_operation_ == ImpulseCoverOperation::OPENING) {
-    bool sensor_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
-    if (sensor_state) {
-      ESP_LOGD(TAG, "Open sensor triggered, stopping movement");
-      this->position = 1.0f;  // Fully open
-      this->stop_movement();
-      return;
-    }
-  }
-  
-  // Check close sensor
-  if (this->close_sensor_ != nullptr && this->current_operation_ == ImpulseCoverOperation::CLOSING) {
-    bool sensor_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
-    if (sensor_state) {
-      ESP_LOGD(TAG, "Close sensor triggered, stopping movement");
-      this->position = 0.0f;  // Fully closed
-      this->stop_movement();
-      return;
-    }
-  }
+  this->publish_state();
+  this->last_publish_time_ = now;
 }
 
-void ImpulseCover::update_position_from_sensors() {
-  // Update position based on current sensor states, even when not moving
-  // Handle case where only one sensor is available
-  
-  bool has_open_sensor = this->open_sensor_ != nullptr;
-  bool has_close_sensor = this->close_sensor_ != nullptr;
-  
-  if (has_close_sensor) {
-    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
-    
-    if (close_state) {
-      // Close sensor is active - porte fermée
-      if (fabs(this->position - 0.0f) > 0.01f) {
-        ESP_LOGD(TAG, "Close sensor active, updating position to 0.0 (was %.2f)", this->position);
-        this->position = 0.0f;
-      }
-    } else if (!has_open_sensor) {
-      // Pas de capteur d'ouverture, mais capteur fermé inactif = probablement ouvert
-      // Ne pas changer la position automatiquement dans ce cas, laisser le calcul temporel
-      ESP_LOGD(TAG, "Close sensor inactive, position remains %.2f (no open sensor)", this->position);
-    }
-  }
-  
-  if (has_open_sensor) {
-    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
-    
-    if (open_state) {
-      // Open sensor is active - porte ouverte
-      if (fabs(this->position - 1.0f) > 0.01f) {
-        ESP_LOGD(TAG, "Open sensor active, updating position to 1.0 (was %.2f)", this->position);
-        this->position = 1.0f;
-      }
-    }
-  }
-  
-  // Si les deux capteurs sont disponibles, logique plus stricte
-  if (has_open_sensor && has_close_sensor) {
-    bool open_state = this->open_sensor_inverted_ ? !this->open_sensor_->state : this->open_sensor_->state;
-    bool close_state = this->close_sensor_inverted_ ? !this->close_sensor_->state : this->close_sensor_->state;
-    
-    if (open_state && close_state) {
-      ESP_LOGW(TAG, "Both sensors active - possible sensor error");
-    } else if (!open_state && !close_state) {
-      ESP_LOGD(TAG, "Both sensors inactive - intermediate position");
-    }
-  }
-}
-#endif
-
-bool ImpulseCover::is_at_target_position() {
-  const float tolerance = 0.01f;  // 1% tolerance
-  return fabs(this->position - this->target_position_) < tolerance;
+bool ImpulseCover::get_sensor_state_(binary_sensor::BinarySensor *sensor, bool inverted) {
+  return sensor ? (inverted ? !sensor->state : sensor->state) : false;
 }
 
-#ifdef USE_BINARY_SENSOR
 void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   this->open_sensor_ = sensor;
+  if (sensor) {
+    sensor->add_on_state_callback([this](bool state) {
+      if (state && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_)) {
+        this->endstop_reached_(true);
+      }
+    });
+  }
 }
 
 void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   this->close_sensor_ = sensor;
+  if (sensor) {
+    sensor->add_on_state_callback([this](bool state) {
+      if (state && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_)) {
+        this->endstop_reached_(false);
+      }
+    });
+  }
 }
 #endif
 
