@@ -609,17 +609,8 @@ void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   this->open_sensor_ = sensor;
   if (sensor) {
     sensor->add_on_state_callback([this](bool state) {
-      ESP_LOGV(TAG, "Open sensor callback triggered - raw state: %s", state ? "ON" : "OFF");
-      bool effective_state = this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_);
-      ESP_LOGV(TAG, "Open sensor effective state: %s (inverted: %s)", 
-               effective_state ? "ACTIVE" : "INACTIVE", 
-               this->open_sensor_inverted_ ? "YES" : "NO");
-      if (state && effective_state) {
-        ESP_LOGV(TAG, "Open sensor condition met - calling endstop_reached_(true)");
-        this->endstop_reached_(true);
-      } else {
-        ESP_LOGV(TAG, "Open sensor condition not met - state=%s, effective_state=%s", 
-                 state ? "true" : "false", effective_state ? "true" : "false");
+      if (this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_)) {
+         this->endstop_reached_(true);
       }
     });
   }
@@ -629,18 +620,9 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   this->close_sensor_ = sensor;
   if (sensor) {
     sensor->add_on_state_callback([this](bool state) {
-      ESP_LOGV(TAG, "Close sensor callback triggered - raw state: %s", state ? "ON" : "OFF");
-      bool effective_state = this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_);
-      ESP_LOGV(TAG, "Close sensor effective state: %s (inverted: %s)", 
-               effective_state ? "ACTIVE" : "INACTIVE", 
-               this->close_sensor_inverted_ ? "YES" : "NO");
-      if (state && effective_state) {
-        ESP_LOGV(TAG, "Close sensor condition met - calling endstop_reached_(false)");
+      if (this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_)) {
         this->endstop_reached_(false);
-      } else {
-        ESP_LOGV(TAG, "Close sensor condition not met - state=%s, effective_state=%s", 
-                 state ? "true" : "false", effective_state ? "true" : "false");
-      }
+      } 
     });
   }
 }
