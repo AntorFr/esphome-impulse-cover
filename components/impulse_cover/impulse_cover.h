@@ -20,12 +20,6 @@ class OnCloseTrigger;
 class OnIdleTrigger;
 class SafetyTrigger;
 
-enum class ImpulseCoverOperation {
-  IDLE = 0,
-  OPENING = 1,
-  CLOSING = 2,
-};
-
 class ImpulseCover : public cover::Cover, public Component {
  public:
   void setup() override;
@@ -56,18 +50,27 @@ class ImpulseCover : public cover::Cover, public Component {
 
  protected:
   void control(const cover::CoverCall &call) override;
-  void start_direction(cover::CoverOperation dir);
-  void stop_movement();
+  
+  // Main control methods (inspired by feedback_cover)
+  void start_direction_(cover::CoverOperation dir);
+  void recompute_position_();
+  bool is_at_target_() const;
+  void set_current_operation_(cover::CoverOperation operation, bool is_triggered);
+  
+#ifdef USE_BINARY_SENSOR
+  void endstop_reached_(bool open_endstop);
+#endif
   
  private:
-  void send_pulse();
-  void update_position();
-  void check_safety();
+  void send_pulse_();
+  void send_double_pulse_();
+  void send_pulse_internal_(bool double_pulse);
+  void check_safety_();
 #ifdef USE_BINARY_SENSOR
-  void handle_endstop();
-  void update_position_from_sensors();
+  bool get_sensor_state_(binary_sensor::BinarySensor *sensor, bool inverted);
+  void check_sensor_alignment_();
+  void update_position_from_sensors_(bool is_initialization);
 #endif
-  bool is_at_target_position();
   
   // Configuration
   uint32_t open_duration_{15000};    // 15 seconds default
@@ -85,27 +88,26 @@ class ImpulseCover : public cover::Cover, public Component {
   bool close_sensor_inverted_{false};
 #endif
   
-  // State tracking
-  ImpulseCoverOperation current_operation_{ImpulseCoverOperation::IDLE};
-  ImpulseCoverOperation target_operation_{ImpulseCoverOperation::IDLE};
-  uint32_t operation_start_time_{0};
+  // State tracking (similar to feedback_cover)
+  cover::CoverOperation current_trigger_operation_{cover::COVER_OPERATION_IDLE};
+  cover::CoverOperation last_operation_{cover::COVER_OPERATION_IDLE};
+  uint32_t start_dir_time_{0};
+  uint32_t last_recompute_time_{0};
   uint32_t last_pulse_time_{0};
-  bool pending_reverse_{false};
+  uint32_t last_publish_time_{0};
+#ifdef USE_BINARY_SENSOR
+  uint32_t last_sensor_check_time_{0};
+#endif
   bool pulse_sent_{false};
   bool safety_triggered_{false};
   uint8_t safety_cycle_count_{0};
-  uint32_t last_direction_change_{0};
   
   // Position calculation
   float target_position_{0};
-  float start_position_{0};
   bool has_initial_state_{false};
-  uint32_t last_position_update_{0};
   
   // Public accessors for triggers
  public:
-  ImpulseCoverOperation get_current_operation() const { return current_operation_; }
-  
   // Automation triggers  
   void add_on_open_trigger(Trigger<> *trigger);
   void add_on_close_trigger(Trigger<> *trigger);
