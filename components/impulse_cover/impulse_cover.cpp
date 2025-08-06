@@ -496,8 +496,13 @@ void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
         this->position = 0.5f;  // Unknown position - intermediate
         this->has_initial_state_ = false;
         ESP_LOGD(TAG, "Initial state: UNKNOWN (neither sensor active) - position set to 50%%");
+      } else if (this->position == COVER_OPEN || this->position == COVER_CLOSED) {
+        // Position indicates endpoint but no sensor active - misalignment
+        ESP_LOGW(TAG, "Position misalignment detected: position=%s but no sensor active - correcting to intermediate", 
+                 this->position == COVER_OPEN ? "OPEN" : "CLOSED");
+        this->position = 0.5f;
+        position_updated = true;
       }
-      // During check, no action needed for intermediate positions
     } else {
       // Both sensors active - should not happen, probably misconfiguration
       if (is_initialization) {
@@ -522,10 +527,17 @@ void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
           ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but open sensor active - correcting to OPEN", old_position);
         }
       }
-    } else if (is_initialization) {
-      this->position = COVER_CLOSED;  // Default to closed when open sensor inactive
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: CLOSED (open sensor inactive, assuming closed)");
+    } else {
+      if (is_initialization) {
+        this->position = COVER_CLOSED;  // Default to closed when open sensor inactive
+        this->has_initial_state_ = false;
+        ESP_LOGD(TAG, "Initial state: CLOSED (open sensor inactive, assuming closed)");
+      } else if (this->position == COVER_OPEN) {
+        // Position indicates open but open sensor inactive - misalignment
+        ESP_LOGW(TAG, "Position misalignment detected: position=OPEN but open sensor inactive - correcting to CLOSED");
+        this->position = COVER_CLOSED;
+        position_updated = true;
+      }
     }
   } else if (!has_open_sensor && has_close_sensor) {
     // Only close sensor configured
@@ -540,10 +552,17 @@ void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
           ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but close sensor active - correcting to CLOSED", old_position);
         }
       }
-    } else if (is_initialization) {
-      this->position = COVER_OPEN;  // Default to open when close sensor inactive
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: OPEN (close sensor inactive, assuming open)");
+    } else {
+      if (is_initialization) {
+        this->position = COVER_OPEN;  // Default to open when close sensor inactive
+        this->has_initial_state_ = false;
+        ESP_LOGD(TAG, "Initial state: OPEN (close sensor inactive, assuming open)");
+      } else if (this->position == COVER_CLOSED) {
+        // Position indicates closed but close sensor inactive - misalignment
+        ESP_LOGW(TAG, "Position misalignment detected: position=CLOSED but close sensor inactive - correcting to OPEN");
+        this->position = COVER_OPEN;
+        position_updated = true;
+      }
     }
   } else if (is_initialization) {
     // No sensors configured - keep restore state or default
