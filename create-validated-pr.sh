@@ -45,14 +45,20 @@ for arg in "$@"; do
     esac
 done
 
-# Fonction pour valider le format de version (semver: x.y.z)
+# Fonction pour valider le format de version (semver: x.y.z ou x.y.z-suffix)
 validate_version_format() {
     local version="$1"
-    if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
         return 0
     else
         return 1
     fi
+}
+
+# Fonction pour extraire la version de base (sans suffixes)
+get_base_version() {
+    local version="$1"
+    echo "$version" | sed 's/-.*$//'
 }
 
 # Fonction pour comparer les versions (semver)
@@ -60,8 +66,12 @@ version_greater_than() {
     local new_ver="$1"
     local current_ver="$2"
     
-    IFS='.' read -ra NEW <<< "$new_ver"
-    IFS='.' read -ra CURRENT <<< "$current_ver"
+    # Extraire les versions de base
+    local new_base=$(get_base_version "$new_ver")
+    local current_base=$(get_base_version "$current_ver")
+    
+    IFS='.' read -ra NEW <<< "$new_base"
+    IFS='.' read -ra CURRENT <<< "$current_base"
     
     # Comparer major
     if [ "${NEW[0]}" -gt "${CURRENT[0]}" ]; then
@@ -80,6 +90,13 @@ version_greater_than() {
     # Comparer patch
     if [ "${NEW[2]}" -gt "${CURRENT[2]}" ]; then
         return 0
+    elif [ "${NEW[2]}" -eq "${CURRENT[2]}" ]; then
+        # Si versions de base identiques, vérifier les suffixes
+        if [[ "$current_ver" =~ -.*$ ]] && [[ ! "$new_ver" =~ -.*$ ]]; then
+            return 0  # Passage de beta/alpha à stable
+        else
+            return 1  # Même version
+        fi
     else
         return 1
     fi
@@ -118,10 +135,18 @@ suggest_next_version() {
     local current="$1"
     local commits_list="$2"
     
-    IFS='.' read -ra VER <<< "$current"
+    # Extraire la version de base
+    local base_version=$(get_base_version "$current")
+    IFS='.' read -ra VER <<< "$base_version"
     local major="${VER[0]}"
     local minor="${VER[1]}"
     local patch="${VER[2]}"
+    
+    # Si c'est une version beta/alpha, suggérer la version stable
+    if [[ "$current" =~ -.*$ ]]; then
+        echo "$base_version"
+        return
+    fi
     
     # Analyser les commits pour suggérer le type de version
     if echo "$commits_list" | grep -qi "breaking\|remove.*api\|major"; then
@@ -207,7 +232,7 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
         
         # Valider le format
         if ! validate_version_format "$NEW_VERSION"; then
-            echo -e "${RED}❌ Format de version invalide. Utilisez le format x.y.z (ex: 1.2.3)${NC}"
+            echo -e "${RED}❌ Format de version invalide. Utilisez le format x.y.z ou x.y.z-suffix (ex: 1.2.3 ou 1.2.3-beta1)${NC}"
             exit 1
         fi
         
@@ -224,7 +249,7 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
 elif [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     # Validation de la version fournie en paramètre
     if ! validate_version_format "$NEW_VERSION"; then
-        echo -e "${RED}❌ Format de version invalide: $NEW_VERSION. Utilisez le format x.y.z (ex: 1.2.3)${NC}"
+        echo -e "${RED}❌ Format de version invalide: $NEW_VERSION. Utilisez le format x.y.z ou x.y.z-suffix (ex: 1.2.3 ou 1.2.3-beta1)${NC}"
         exit 1
     fi
     
