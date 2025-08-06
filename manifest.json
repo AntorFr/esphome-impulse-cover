@@ -1,7 +1,7 @@
 {
   "name": "Impulse Cover",
   "description": "ESPHome component for single-pulse cover control systems",
-  "version": "1.0.0-beta4",
+  "version": "1.1.0-rc1",
   "author": "ESPHome Community",
   "license": "MIT",
   "repository": "https://github.com/AntorFr/esphome-impulse-cover",
@@ -44,7 +44,7 @@
         "default": "500ms"
       },
       "safety_timeout": {
-        "description": "Maximum time for any single operation", 
+        "description": "Maximum time for any single operation",
         "default": "60s"
       },
       "safety_max_cycles": {
@@ -60,7 +60,7 @@
     },
     "required": [
       "output",
-      "open_duration", 
+      "open_duration",
       "close_duration"
     ]
   }
