@@ -2,7 +2,7 @@
 
 # Script de validation complète et création de PR pour ESPHome Impulse Cover
 # Ce script combine la validation de qualité, les pré-commit checks et la création de PR
-# Usage: ./create-validated-pr.sh [titre] [description] [--preview]
+# Usage: ./create-validated-pr.sh [titre] [description] [--preview] [--version[=x.y.z]]
 
 set -e
 
@@ -19,6 +19,8 @@ NC='\033[0m' # No Color
 FAILED_CHECKS=0
 SKIP_TESTS=false
 PREVIEW_MODE=false
+CREATE_VERSION=false
+NEW_VERSION=""
 
 # Vérifier les arguments
 for arg in "$@"; do
@@ -31,8 +33,105 @@ for arg in "$@"; do
             SKIP_TESTS=true
             shift
             ;;
+        --version=*)
+            CREATE_VERSION=true
+            NEW_VERSION="${arg#*=}"
+            shift
+            ;;
+        --version)
+            CREATE_VERSION=true
+            shift
+            ;;
     esac
 done
+
+# Fonction pour valider le format de version (semver: x.y.z)
+validate_version_format() {
+    local version="$1"
+    if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Fonction pour comparer les versions (semver)
+version_greater_than() {
+    local new_ver="$1"
+    local current_ver="$2"
+    
+    IFS='.' read -ra NEW <<< "$new_ver"
+    IFS='.' read -ra CURRENT <<< "$current_ver"
+    
+    # Comparer major
+    if [ "${NEW[0]}" -gt "${CURRENT[0]}" ]; then
+        return 0
+    elif [ "${NEW[0]}" -lt "${CURRENT[0]}" ]; then
+        return 1
+    fi
+    
+    # Comparer minor
+    if [ "${NEW[1]}" -gt "${CURRENT[1]}" ]; then
+        return 0
+    elif [ "${NEW[1]}" -lt "${CURRENT[1]}" ]; then
+        return 1
+    fi
+    
+    # Comparer patch
+    if [ "${NEW[2]}" -gt "${CURRENT[2]}" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Fonction pour obtenir la version actuelle depuis le manifest
+get_current_version() {
+    if [ -f "manifest.json" ]; then
+        python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0"
+    else
+        echo "0.0.0"
+    fi
+}
+
+# Fonction pour mettre à jour la version dans le manifest
+update_manifest_version() {
+    local new_version="$1"
+    if [ -f "manifest.json" ]; then
+        python3 -c "
+import json
+with open('manifest.json', 'r') as f:
+    data = json.load(f)
+data['version'] = '$new_version'
+with open('manifest.json', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+        echo "📦 Manifest mis à jour avec la version $new_version"
+    else
+        echo "❌ Fichier manifest.json non trouvé"
+        return 1
+    fi
+}
+
+# Fonction pour suggérer la prochaine version
+suggest_next_version() {
+    local current="$1"
+    local commits_list="$2"
+    
+    IFS='.' read -ra VER <<< "$current"
+    local major="${VER[0]}"
+    local minor="${VER[1]}"
+    local patch="${VER[2]}"
+    
+    # Analyser les commits pour suggérer le type de version
+    if echo "$commits_list" | grep -qi "breaking\|remove.*api\|major"; then
+        echo "$((major + 1)).0.0"
+    elif echo "$commits_list" | grep -qi "feat\|add.*sensor\|new.*feature\|implement"; then
+        echo "$major.$((minor + 1)).0"
+    else
+        echo "$major.$minor.$((patch + 1))"
+    fi
+}
 
 # Fonction pour afficher les résultats
 print_result() {
@@ -76,6 +175,66 @@ if [[ -n $(git status --porcelain) ]]; then
 fi
 
 print_result 0 "Repository dans un état propre"
+
+# ========================================
+# GESTION DES VERSIONS
+# ========================================
+
+# Obtenir la version actuelle
+CURRENT_VERSION=$(get_current_version)
+echo -e "\n${CYAN}📦 Version actuelle: ${CURRENT_VERSION}${NC}"
+
+# Analyser les commits pour suggestion
+commits_preview=$(git log --oneline main..dev --format="- %s" | head -10)
+
+# Demander si on veut créer une nouvelle version
+if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
+    echo -e "\n${YELLOW}🏷️ GESTION DES VERSIONS${NC}"
+    echo "────────────────────────────────────────"
+    
+    # Suggérer la prochaine version
+    SUGGESTED_VERSION=$(suggest_next_version "$CURRENT_VERSION" "$commits_preview")
+    echo -e "Version actuelle: ${CYAN}$CURRENT_VERSION${NC}"
+    echo -e "Version suggérée: ${GREEN}$SUGGESTED_VERSION${NC}"
+    echo -e "\nChangements depuis la dernière version:"
+    echo "$commits_preview" | head -5
+    echo ""
+    
+    read -p "Voulez-vous créer une nouvelle version ? (o/N): " create_version_response
+    if [[ "$create_version_response" =~ ^[oO]$ ]]; then
+        read -p "Numéro de version (format x.y.z) [$SUGGESTED_VERSION]: " version_input
+        NEW_VERSION="${version_input:-$SUGGESTED_VERSION}"
+        
+        # Valider le format
+        if ! validate_version_format "$NEW_VERSION"; then
+            echo -e "${RED}❌ Format de version invalide. Utilisez le format x.y.z (ex: 1.2.3)${NC}"
+            exit 1
+        fi
+        
+        # Vérifier que la nouvelle version est supérieure
+        if ! version_greater_than "$NEW_VERSION" "$CURRENT_VERSION"; then
+            echo -e "${RED}❌ La nouvelle version ($NEW_VERSION) doit être supérieure à la version actuelle ($CURRENT_VERSION)${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
+    else
+        CREATE_VERSION=false
+    fi
+elif [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+    # Validation de la version fournie en paramètre
+    if ! validate_version_format "$NEW_VERSION"; then
+        echo -e "${RED}❌ Format de version invalide: $NEW_VERSION. Utilisez le format x.y.z (ex: 1.2.3)${NC}"
+        exit 1
+    fi
+    
+    if ! version_greater_than "$NEW_VERSION" "$CURRENT_VERSION"; then
+        echo -e "${RED}❌ La nouvelle version ($NEW_VERSION) doit être supérieure à la version actuelle ($CURRENT_VERSION)${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ Version $NEW_VERSION validée${NC}"
+fi
 
 # Configuration de l'environnement Python
 print_subsection "🐍 Configuration de l'environnement Python"
@@ -277,6 +436,23 @@ fi
 
 print_section "🚀 PHASE 4: CRÉATION DE LA PULL REQUEST"
 
+# Mise à jour de la version si demandée
+if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+    print_subsection "📦 Mise à jour de la version"
+    
+    # Mettre à jour le manifest
+    update_manifest_version "$NEW_VERSION"
+    
+    # Committer les changements de version
+    git add manifest.json
+    git commit -m "chore: Bump version to $NEW_VERSION
+
+- Update manifest.json with new version
+- Ready for release tagging"
+    
+    echo -e "${GREEN}✅ Version mise à jour et commitée${NC}"
+fi
+
 # Push des derniers changements
 print_subsection "📤 Push des changements"
 echo "Push vers origin/dev..."
@@ -333,14 +509,33 @@ generate_pr_content() {
         AUTO_TITLE="🔧 Maintenance Release: Code Quality and Optimization"
     fi
     
+    # Ajouter la version au titre si une nouvelle version est créée
+    if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+        AUTO_TITLE="🏷️ Release $NEW_VERSION: $(echo "$AUTO_TITLE" | sed 's/.*: //')"
+    fi
+    
     # Générer la description automatiquement
     local upper_release_type
     upper_release_type=$(echo "$release_type" | tr '[:lower:]' '[:upper:]')
     
-    AUTO_BODY="# 🚀 ESPHome Impulse Cover - Release $(date '+%Y.%m.%d')
+    local release_info=""
+    if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+        release_info="Release $NEW_VERSION"
+    else
+        release_info="Release $(date '+%Y.%m.%d')"
+    fi
+    
+    AUTO_BODY="# 🚀 ESPHome Impulse Cover - $release_info
 
 ## 📈 Release Summary
-- **Release Type**: ${upper_release_type} release
+- **Release Type**: ${upper_release_type} release"
+
+    if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+        AUTO_BODY="$AUTO_BODY
+- **Version**: ${NEW_VERSION} (previous: ${CURRENT_VERSION})"
+    fi
+    
+    AUTO_BODY="$AUTO_BODY
 - **Component Files Changed**: $component_changes
 - **Configuration Examples Updated**: $config_changes  
 - **Documentation Changes**: $doc_changes
@@ -497,12 +692,44 @@ if [ $? -eq 0 ]; then
         echo -e "${YELLOW}💡 Vous pouvez l'activer manuellement sur GitHub${NC}"
     fi
     
+    # Créer le tag de version après merge si une version est spécifiée
+    if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+        print_subsection "🏷️ Création du tag de version"
+        echo "Le tag $NEW_VERSION sera créé automatiquement après le merge de la PR"
+        echo "Pour créer le tag manuellement plus tard:"
+        echo "  git checkout main && git pull && git tag v$NEW_VERSION && git push origin v$NEW_VERSION"
+    fi
+    
     # Résumé final
     print_section "🎉 PROCESSUS TERMINÉ AVEC SUCCÈS !"
     
     echo -e "${GREEN}✅ Validation complète: RÉUSSIE${NC}"
     echo -e "${GREEN}✅ Pull Request créée: RÉUSSIE${NC}"
     echo -e "${GREEN}✅ Auto-merge configuré: RÉUSSIE${NC}"
+    
+    if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
+        echo -e "${GREEN}✅ Version $NEW_VERSION configurée${NC}"
+        
+        # Créer un script pour le tagging post-merge
+        cat > ".post-merge-tag.sh" << EOF
+#!/bin/bash
+# Auto-generated script for post-merge tagging
+echo "🏷️ Création du tag v$NEW_VERSION..."
+git checkout main
+git pull origin main
+git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION
+
+$(echo "$commits_list" | head -5)
+
+Auto-generated by create-validated-pr.sh"
+git push origin "v$NEW_VERSION"
+echo "✅ Tag v$NEW_VERSION créé et poussé"
+rm "\$0"  # Self-delete
+EOF
+        chmod +x ".post-merge-tag.sh"
+        echo -e "${CYAN}📝 Script de tagging post-merge créé: .post-merge-tag.sh${NC}"
+    fi
+    
     echo ""
     echo -e "${CYAN}🔗 Lien vers la PR: $PR_URL${NC}"
     echo -e "${CYAN}🤖 La PR sera automatiquement mergée si tous les CI/CD passent${NC}"
