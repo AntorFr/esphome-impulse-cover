@@ -128,6 +128,18 @@ with open('manifest.json', 'w') as f:
     fi
 }
 
+# Fonction pour mettre à jour la version dans le fichier VERSION
+update_version_file() {
+    local new_version="$1"
+    if [ -f "VERSION" ]; then
+        echo "$new_version" > VERSION
+        echo "📦 Fichier VERSION mis à jour avec la version $new_version"
+    else
+        echo "❌ Fichier VERSION non trouvé"
+        return 1
+    fi
+}
+
 # Fonction pour suggérer la prochaine version
 suggest_next_version() {
     local current="$1"
@@ -501,14 +513,16 @@ if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     local_version=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0")
     
     if [ "$local_version" != "$NEW_VERSION" ]; then
-        # Mettre à jour le manifest
+        # Mettre à jour le manifest et le fichier VERSION
         update_manifest_version "$NEW_VERSION"
+        update_version_file "$NEW_VERSION"
         
         # Committer les changements de version
-        git add manifest.json
+        git add manifest.json VERSION
         git commit -m "chore: Bump version to $NEW_VERSION
 
 - Update manifest.json with new version
+- Update VERSION file to match manifest
 - Ready for release tagging"
         
         echo -e "${GREEN}✅ Version mise à jour et commitée${NC}"
