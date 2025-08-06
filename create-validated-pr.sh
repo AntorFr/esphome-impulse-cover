@@ -210,7 +210,7 @@ echo -e "\n${CYAN}📦 Version sur main: ${CURRENT_VERSION}${NC}"
 # Analyser les commits pour suggestion
 commits_preview=$(git log --oneline main..dev --format="- %s" | head -10)
 
-# Demander si on veut créer une nouvelle version
+# Demander si on veut créer une nouvelle version (toujours proposer)
 if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
     echo -e "\n${YELLOW}🏷️ GESTION DES VERSIONS${NC}"
     echo "────────────────────────────────────────"
@@ -241,8 +241,42 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
         fi
         
         echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
+        CREATE_VERSION=true
     else
         CREATE_VERSION=false
+    fi
+elif [ "$CREATE_VERSION" = false ]; then
+    # Proposer la création de version même si --version n'a pas été utilisé
+    echo -e "\n${YELLOW}🏷️ GESTION DES VERSIONS${NC}"
+    echo "────────────────────────────────────────"
+    
+    # Suggérer la prochaine version
+    SUGGESTED_VERSION=$(suggest_next_version "$CURRENT_VERSION" "$commits_preview")
+    echo -e "Version sur main: ${CYAN}$CURRENT_VERSION${NC}"
+    echo -e "Version suggérée: ${GREEN}$SUGGESTED_VERSION${NC}"
+    echo -e "\nChangements depuis la dernière version:"
+    echo "$commits_preview" | head -5
+    echo ""
+    
+    read -p "Voulez-vous créer une nouvelle version ? (o/N): " create_version_response
+    if [[ "$create_version_response" =~ ^[oO]$ ]]; then
+        read -p "Numéro de version (format x.y.z) [$SUGGESTED_VERSION]: " version_input
+        NEW_VERSION="${version_input:-$SUGGESTED_VERSION}"
+        
+        # Valider le format
+        if ! validate_version_format "$NEW_VERSION"; then
+            echo -e "${RED}❌ Format de version invalide. Utilisez le format x.y.z ou x.y.z-suffix (ex: 1.2.3 ou 1.2.3-beta1)${NC}"
+            exit 1
+        fi
+        
+        # Vérifier que la nouvelle version est supérieure
+        if ! version_greater_than "$NEW_VERSION" "$CURRENT_VERSION"; then
+            echo -e "${RED}❌ La nouvelle version ($NEW_VERSION) doit être supérieure à la version actuelle ($CURRENT_VERSION)${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}✅ Nouvelle version validée: $NEW_VERSION${NC}"
+        CREATE_VERSION=true
     fi
 elif [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     # Validation de la version fournie en paramètre
