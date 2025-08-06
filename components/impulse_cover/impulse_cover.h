@@ -68,6 +68,8 @@ class ImpulseCover : public cover::Cover, public Component {
   void check_safety_();
 #ifdef USE_BINARY_SENSOR
   bool get_sensor_state_(binary_sensor::BinarySensor *sensor, bool inverted);
+  void check_sensor_alignment_();
+  void update_position_from_sensors_(bool is_initialization);
 #endif
   
   // Configuration
@@ -93,6 +95,9 @@ class ImpulseCover : public cover::Cover, public Component {
   uint32_t last_recompute_time_{0};
   uint32_t last_pulse_time_{0};
   uint32_t last_publish_time_{0};
+#ifdef USE_BINARY_SENSOR
+  uint32_t last_sensor_check_time_{0};
+#endif
   bool pulse_sent_{false};
   bool safety_triggered_{false};
   uint8_t safety_cycle_count_{0};

@@ -37,75 +37,30 @@ void ImpulseCover::setup() {
 #ifdef USE_BINARY_SENSOR
   // Initialize position from sensors if available
   ESP_LOGV(TAG, "Initializing position from sensors...");
-  
-  bool has_open_sensor = (this->open_sensor_ != nullptr);
-  bool has_close_sensor = (this->close_sensor_ != nullptr);
-  bool open_sensor_active = has_open_sensor && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_);
-  bool close_sensor_active = has_close_sensor && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_);
-  
-  ESP_LOGV(TAG, "Sensors: open=%s (active=%s), close=%s (active=%s)", 
-           has_open_sensor ? "YES" : "NO", open_sensor_active ? "YES" : "NO",
-           has_close_sensor ? "YES" : "NO", close_sensor_active ? "YES" : "NO");
-  
-  if (has_open_sensor && has_close_sensor) {
-    // Both sensors configured - use precise logic
-    if (open_sensor_active && !close_sensor_active) {
-      this->position = COVER_OPEN;
-      this->has_initial_state_ = true;
-      ESP_LOGI(TAG, "Initial state: OPEN (open sensor active, close sensor inactive)");
-    } else if (close_sensor_active && !open_sensor_active) {
-      this->position = COVER_CLOSED;
-      this->has_initial_state_ = true;
-      ESP_LOGI(TAG, "Initial state: CLOSED (close sensor active, open sensor inactive)");
-    } else if (!open_sensor_active && !close_sensor_active) {
-      this->position = 0.5f;  // Unknown position - intermediate
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: UNKNOWN (neither sensor active) - position set to 50%%");
-    } else {
-      // Both sensors active - should not happen, probably misconfiguration
-      ESP_LOGW(TAG, "Both sensors active simultaneously - possible misconfiguration!");
-      this->position = 0.5f;  // Unknown position
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: CONFLICT (both sensors active) - position set to 50%%");
-    }
-  } else if (has_open_sensor && !has_close_sensor) {
-    // Only open sensor configured
-    if (open_sensor_active) {
-      this->position = COVER_OPEN;
-      this->has_initial_state_ = true;
-      ESP_LOGI(TAG, "Initial state: OPEN (open sensor active)");
-    } else {
-      this->position = COVER_CLOSED;  // Default to closed when open sensor inactive
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: CLOSED (open sensor inactive, assuming closed)");
-    }
-  } else if (!has_open_sensor && has_close_sensor) {
-    // Only close sensor configured
-    if (close_sensor_active) {
-      this->position = COVER_CLOSED;
-      this->has_initial_state_ = true;
-      ESP_LOGI(TAG, "Initial state: CLOSED (close sensor active)");
-    } else {
-      this->position = COVER_OPEN;  // Default to open when close sensor inactive
-      this->has_initial_state_ = false;
-      ESP_LOGD(TAG, "Initial state: OPEN (close sensor inactive, assuming open)");
-    }
-  } else {
-    // No sensors configured - keep restore state or default
-    ESP_LOGV(TAG, "No sensors configured - keeping current position: %.2f", this->position);
-  }
+  this->update_position_from_sensors_(true);
 #endif
   
   this->start_dir_time_ = this->last_recompute_time_ = millis();
+#ifdef USE_BINARY_SENSOR
+  this->last_sensor_check_time_ = millis();
+#endif
   ESP_LOGCONFIG(TAG, "Impulse Cover setup complete");
 }
 
 void ImpulseCover::loop() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
-    return;
-    
   const uint32_t now = millis();
   
+  if (this->current_operation == COVER_OPERATION_IDLE) {
+#ifdef USE_BINARY_SENSOR
+    // Check sensor alignment periodically when idle
+    if (now - this->last_sensor_check_time_ > this->safety_timeout_) {
+      this->check_sensor_alignment_();
+      this->last_sensor_check_time_ = now;
+    }
+#endif
+    return;
+  }
+    
   // Recompute position every loop cycle
   this->recompute_position_();
   
@@ -499,6 +454,118 @@ void ImpulseCover::check_safety_() {
 }
 
 #ifdef USE_BINARY_SENSOR
+void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
+  bool has_open_sensor = (this->open_sensor_ != nullptr);
+  bool has_close_sensor = (this->close_sensor_ != nullptr);
+  bool open_sensor_active = has_open_sensor && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_);
+  bool close_sensor_active = has_close_sensor && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_);
+  
+  ESP_LOGV(TAG, "Sensors: open=%s (active=%s), close=%s (active=%s)", 
+           has_open_sensor ? "YES" : "NO", open_sensor_active ? "YES" : "NO",
+           has_close_sensor ? "YES" : "NO", close_sensor_active ? "YES" : "NO");
+  
+  float old_position = this->position;
+  bool position_updated = false;
+  
+  if (has_open_sensor && has_close_sensor) {
+    // Both sensors configured - use precise logic
+    if (open_sensor_active && !close_sensor_active) {
+      if (is_initialization || this->position != COVER_OPEN) {
+        this->position = COVER_OPEN;
+        position_updated = true;
+        if (is_initialization) {
+          this->has_initial_state_ = true;
+          ESP_LOGI(TAG, "Initial state: OPEN (open sensor active, close sensor inactive)");
+        } else {
+          ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but open sensor active - correcting to OPEN", old_position);
+        }
+      }
+    } else if (close_sensor_active && !open_sensor_active) {
+      if (is_initialization || this->position != COVER_CLOSED) {
+        this->position = COVER_CLOSED;
+        position_updated = true;
+        if (is_initialization) {
+          this->has_initial_state_ = true;
+          ESP_LOGI(TAG, "Initial state: CLOSED (close sensor active, open sensor inactive)");
+        } else {
+          ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but close sensor active - correcting to CLOSED", old_position);
+        }
+      }
+    } else if (!open_sensor_active && !close_sensor_active) {
+      if (is_initialization) {
+        this->position = 0.5f;  // Unknown position - intermediate
+        this->has_initial_state_ = false;
+        ESP_LOGD(TAG, "Initial state: UNKNOWN (neither sensor active) - position set to 50%%");
+      }
+      // During check, no action needed for intermediate positions
+    } else {
+      // Both sensors active - should not happen, probably misconfiguration
+      if (is_initialization) {
+        ESP_LOGW(TAG, "Both sensors active simultaneously - possible misconfiguration!");
+        this->position = 0.5f;  // Unknown position
+        this->has_initial_state_ = false;
+        ESP_LOGD(TAG, "Initial state: CONFLICT (both sensors active) - position set to 50%%");
+      } else {
+        ESP_LOGW(TAG, "Sensor conflict detected: both sensors active simultaneously!");
+      }
+    }
+  } else if (has_open_sensor && !has_close_sensor) {
+    // Only open sensor configured
+    if (open_sensor_active) {
+      if (is_initialization || this->position != COVER_OPEN) {
+        this->position = COVER_OPEN;
+        position_updated = true;
+        if (is_initialization) {
+          this->has_initial_state_ = true;
+          ESP_LOGI(TAG, "Initial state: OPEN (open sensor active)");
+        } else {
+          ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but open sensor active - correcting to OPEN", old_position);
+        }
+      }
+    } else if (is_initialization) {
+      this->position = COVER_CLOSED;  // Default to closed when open sensor inactive
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: CLOSED (open sensor inactive, assuming closed)");
+    }
+  } else if (!has_open_sensor && has_close_sensor) {
+    // Only close sensor configured
+    if (close_sensor_active) {
+      if (is_initialization || this->position != COVER_CLOSED) {
+        this->position = COVER_CLOSED;
+        position_updated = true;
+        if (is_initialization) {
+          this->has_initial_state_ = true;
+          ESP_LOGI(TAG, "Initial state: CLOSED (close sensor active)");
+        } else {
+          ESP_LOGW(TAG, "Position misalignment detected: position=%.3f but close sensor active - correcting to CLOSED", old_position);
+        }
+      }
+    } else if (is_initialization) {
+      this->position = COVER_OPEN;  // Default to open when close sensor inactive
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: OPEN (close sensor inactive, assuming open)");
+    }
+  } else if (is_initialization) {
+    // No sensors configured - keep restore state or default
+    ESP_LOGV(TAG, "No sensors configured - keeping current position: %.2f", this->position);
+  }
+  
+  if (!is_initialization) {
+    if (position_updated) {
+      ESP_LOGI(TAG, "Position corrected based on sensor feedback");
+      this->publish_state();
+    } else {
+      ESP_LOGV(TAG, "Sensor alignment check passed - no correction needed");
+    }
+  }
+}
+
+void ImpulseCover::check_sensor_alignment_() {
+  ESP_LOGV(TAG, "Checking sensor alignment with current position...");
+  ESP_LOGV(TAG, "Current position: %.3f", this->position);
+  this->update_position_from_sensors_(false);
+}
+
 void ImpulseCover::endstop_reached_(bool open_endstop) {
   const uint32_t now = millis();
   
@@ -542,8 +609,17 @@ void ImpulseCover::set_open_sensor(binary_sensor::BinarySensor *sensor) {
   this->open_sensor_ = sensor;
   if (sensor) {
     sensor->add_on_state_callback([this](bool state) {
-      if (state && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_)) {
+      ESP_LOGV(TAG, "Open sensor callback triggered - raw state: %s", state ? "ON" : "OFF");
+      bool effective_state = this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_);
+      ESP_LOGV(TAG, "Open sensor effective state: %s (inverted: %s)", 
+               effective_state ? "ACTIVE" : "INACTIVE", 
+               this->open_sensor_inverted_ ? "YES" : "NO");
+      if (state && effective_state) {
+        ESP_LOGV(TAG, "Open sensor condition met - calling endstop_reached_(true)");
         this->endstop_reached_(true);
+      } else {
+        ESP_LOGV(TAG, "Open sensor condition not met - state=%s, effective_state=%s", 
+                 state ? "true" : "false", effective_state ? "true" : "false");
       }
     });
   }
@@ -553,8 +629,17 @@ void ImpulseCover::set_close_sensor(binary_sensor::BinarySensor *sensor) {
   this->close_sensor_ = sensor;
   if (sensor) {
     sensor->add_on_state_callback([this](bool state) {
-      if (state && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_)) {
+      ESP_LOGV(TAG, "Close sensor callback triggered - raw state: %s", state ? "ON" : "OFF");
+      bool effective_state = this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_);
+      ESP_LOGV(TAG, "Close sensor effective state: %s (inverted: %s)", 
+               effective_state ? "ACTIVE" : "INACTIVE", 
+               this->close_sensor_inverted_ ? "YES" : "NO");
+      if (state && effective_state) {
+        ESP_LOGV(TAG, "Close sensor condition met - calling endstop_reached_(false)");
         this->endstop_reached_(false);
+      } else {
+        ESP_LOGV(TAG, "Close sensor condition not met - state=%s, effective_state=%s", 
+                 state ? "true" : "false", effective_state ? "true" : "false");
       }
     });
   }
