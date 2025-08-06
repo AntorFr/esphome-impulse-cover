@@ -102,13 +102,11 @@ version_greater_than() {
     fi
 }
 
-# Fonction pour obtenir la version actuelle depuis le manifest
+# Fonction pour obtenir la version actuelle depuis le manifest de la branche main
 get_current_version() {
-    if [ -f "manifest.json" ]; then
-        python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0"
-    else
-        echo "0.0.0"
-    fi
+    # Récupérer la version depuis la branche main
+    local main_version=$(git show main:manifest.json 2>/dev/null | python3 -c "import json, sys; data=json.load(sys.stdin); print(data.get('version', '0.0.0'))" 2>/dev/null || echo "0.0.0")
+    echo "$main_version"
 }
 
 # Fonction pour mettre à jour la version dans le manifest
@@ -205,9 +203,9 @@ print_result 0 "Repository dans un état propre"
 # GESTION DES VERSIONS
 # ========================================
 
-# Obtenir la version actuelle
+# Obtenir la version actuelle depuis la branche main
 CURRENT_VERSION=$(get_current_version)
-echo -e "\n${CYAN}📦 Version actuelle: ${CURRENT_VERSION}${NC}"
+echo -e "\n${CYAN}📦 Version sur main: ${CURRENT_VERSION}${NC}"
 
 # Analyser les commits pour suggestion
 commits_preview=$(git log --oneline main..dev --format="- %s" | head -10)
@@ -219,7 +217,7 @@ if [ "$CREATE_VERSION" = true ] && [ -z "$NEW_VERSION" ]; then
     
     # Suggérer la prochaine version
     SUGGESTED_VERSION=$(suggest_next_version "$CURRENT_VERSION" "$commits_preview")
-    echo -e "Version actuelle: ${CYAN}$CURRENT_VERSION${NC}"
+    echo -e "Version sur main: ${CYAN}$CURRENT_VERSION${NC}"
     echo -e "Version suggérée: ${GREEN}$SUGGESTED_VERSION${NC}"
     echo -e "\nChangements depuis la dernière version:"
     echo "$commits_preview" | head -5
