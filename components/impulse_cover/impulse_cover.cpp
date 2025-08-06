@@ -70,8 +70,8 @@ void ImpulseCover::loop() {
       
       // In impulse mode, only send stop pulse for intermediate positions
       // Final positions (fully open/closed) will stop automatically at endstops
-      bool is_intermediate_target = (this->target_position_ > COVER_CLOSED + 0.01f && 
-                                   this->target_position_ < COVER_OPEN - 0.01f);
+      bool is_intermediate_target = (this->target_position_ > COVER_CLOSED + 0.00f && 
+                                   this->target_position_ < COVER_OPEN - 0.00f);
       
       if (is_intermediate_target) {
         ESP_LOGD(TAG, "Intermediate target - sending stop pulse");
@@ -190,10 +190,10 @@ void ImpulseCover::start_direction_(cover::CoverOperation dir) {
       send_pulse = true;
     }
   } else if (dir == COVER_OPERATION_OPENING) {
-    if (this->position >= COVER_OPEN - 0.01f) {
+    if (this->position >= COVER_OPEN - 0.00f) {
       // Already fully open - nothing to do
       ESP_LOGD(TAG, "Already fully open - no pulse needed");
-    } else if (this->position <= COVER_CLOSED + 0.01f) {
+    } else if (this->position <= COVER_CLOSED + 0.00f) {
       // Fully closed, want to open - single pulse
       ESP_LOGD(TAG, "Closed to open - sending single pulse");
       send_pulse = true;
@@ -210,10 +210,10 @@ void ImpulseCover::start_direction_(cover::CoverOperation dir) {
       }
     }
   } else if (dir == COVER_OPERATION_CLOSING) {
-    if (this->position <= COVER_CLOSED + 0.01f) {
+    if (this->position <= COVER_CLOSED + 0.00f) {
       // Already fully closed - nothing to do
       ESP_LOGD(TAG, "Already fully closed - no pulse needed");
-    } else if (this->position >= COVER_OPEN - 0.01f) {
+    } else if (this->position >= COVER_OPEN - 0.00f) {
       // Fully open, want to close - single pulse
       ESP_LOGD(TAG, "Open to close - sending single pulse");
       send_pulse = true;
@@ -317,7 +317,7 @@ void ImpulseCover::recompute_position_() {
 }
 
 bool ImpulseCover::is_at_target_() const {
-  const float tolerance = 0.01f;  // 1% tolerance
+  const float tolerance = 0.00f;  // 1% tolerance
   
   switch (this->current_trigger_operation_) {
     case COVER_OPERATION_OPENING:
