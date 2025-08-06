@@ -36,14 +36,63 @@ void ImpulseCover::setup() {
 
 #ifdef USE_BINARY_SENSOR
   // Initialize position from sensors if available
-  if (this->open_sensor_ != nullptr && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_)) {
-    this->position = COVER_OPEN;
-    this->has_initial_state_ = true;
-    ESP_LOGD(TAG, "Initial state: OPEN (open sensor active)");
-  } else if (this->close_sensor_ != nullptr && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_)) {
-    this->position = COVER_CLOSED;
-    this->has_initial_state_ = true;
-    ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active)");
+  ESP_LOGD(TAG, "Initializing position from sensors...");
+  
+  bool has_open_sensor = (this->open_sensor_ != nullptr);
+  bool has_close_sensor = (this->close_sensor_ != nullptr);
+  bool open_sensor_active = has_open_sensor && this->get_sensor_state_(this->open_sensor_, this->open_sensor_inverted_);
+  bool close_sensor_active = has_close_sensor && this->get_sensor_state_(this->close_sensor_, this->close_sensor_inverted_);
+  
+  ESP_LOGD(TAG, "Sensors: open=%s (active=%s), close=%s (active=%s)", 
+           has_open_sensor ? "YES" : "NO", open_sensor_active ? "YES" : "NO",
+           has_close_sensor ? "YES" : "NO", close_sensor_active ? "YES" : "NO");
+  
+  if (has_open_sensor && has_close_sensor) {
+    // Both sensors configured - use precise logic
+    if (open_sensor_active && !close_sensor_active) {
+      this->position = COVER_OPEN;
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active, close sensor inactive)");
+    } else if (close_sensor_active && !open_sensor_active) {
+      this->position = COVER_CLOSED;
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active, open sensor inactive)");
+    } else if (!open_sensor_active && !close_sensor_active) {
+      this->position = 0.5f;  // Unknown position - intermediate
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: UNKNOWN (neither sensor active) - position set to 50%%");
+    } else {
+      // Both sensors active - should not happen, probably misconfiguration
+      ESP_LOGW(TAG, "Both sensors active simultaneously - possible misconfiguration!");
+      this->position = 0.5f;  // Unknown position
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: CONFLICT (both sensors active) - position set to 50%%");
+    }
+  } else if (has_open_sensor && !has_close_sensor) {
+    // Only open sensor configured
+    if (open_sensor_active) {
+      this->position = COVER_OPEN;
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: OPEN (open sensor active)");
+    } else {
+      this->position = COVER_CLOSED;  // Default to closed when open sensor inactive
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: CLOSED (open sensor inactive, assuming closed)");
+    }
+  } else if (!has_open_sensor && has_close_sensor) {
+    // Only close sensor configured
+    if (close_sensor_active) {
+      this->position = COVER_CLOSED;
+      this->has_initial_state_ = true;
+      ESP_LOGD(TAG, "Initial state: CLOSED (close sensor active)");
+    } else {
+      this->position = COVER_OPEN;  // Default to open when close sensor inactive
+      this->has_initial_state_ = false;
+      ESP_LOGD(TAG, "Initial state: OPEN (close sensor inactive, assuming open)");
+    }
+  } else {
+    // No sensors configured - keep restore state or default
+    ESP_LOGD(TAG, "No sensors configured - keeping current position: %.2f", this->position);
   }
 #endif
   
