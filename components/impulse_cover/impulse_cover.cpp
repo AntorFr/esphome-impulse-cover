@@ -67,12 +67,22 @@ void ImpulseCover::loop() {
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
     if (this->is_at_target_()) {
       ESP_LOGD(TAG, "Target position reached, stopping movement");
-      this->start_direction_(COVER_OPERATION_IDLE);
+      
+      // In impulse mode, only send stop pulse for intermediate positions
+      // Final positions (fully open/closed) will stop automatically at endstops
+      bool is_intermediate_target = (this->target_position_ > COVER_CLOSED + 0.01f && 
+                                   this->target_position_ < COVER_OPEN - 0.01f);
+      
+      if (is_intermediate_target) {
+        ESP_LOGD(TAG, "Intermediate target - sending stop pulse");
+        this->start_direction_(COVER_OPERATION_IDLE);
+      } else {
+        ESP_LOGD(TAG, "Final position target - no stop pulse needed");
+        this->set_current_operation_(COVER_OPERATION_IDLE, false);
+      }
     } else if (now - this->start_dir_time_ > this->safety_timeout_) {
       ESP_LOGW(TAG, "Safety timeout reached, stopping movement");
-      this->safety_triggered_ = true;
-      this->fire_on_safety_triggers_();
-      this->start_direction_(COVER_OPERATION_IDLE);
+      this->set_current_operation_(COVER_OPERATION_IDLE, false);
     }
   }
   
@@ -293,13 +303,11 @@ void ImpulseCover::recompute_position_() {
       return;
   }
   
-  // Calculate position based on time
+  // Calculate position based on time - using captured start position
   float progress = std::min(1.0f, static_cast<float>(elapsed) / action_dur);
-  float start_pos = (this->current_operation == COVER_OPERATION_OPENING) ? 
-                    (this->target_position_ - (this->target_position_ - this->position)) :
-                    (this->target_position_ + (this->position - this->target_position_));
+  this->position = (this->current_operation == COVER_OPERATION_OPENING) ?
+                   (this->position + progress) : (this->position - progress);
   
-  this->position = start_pos + (this->target_position_ - start_pos) * progress;
   
   // Clamp position
   if (this->position < COVER_CLOSED) this->position = COVER_CLOSED;
@@ -408,11 +416,8 @@ void ImpulseCover::endstop_reached_(bool open_endstop) {
     float dur = (now - this->start_dir_time_) / 1e3f;
     ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.",
              this->get_name().c_str(), open_endstop ? "Open" : "Close", dur);
-    
   }
-  
-  this->publish_state();
-  this->last_publish_time_ = now;
+  this->set_current_operation_(COVER_OPERATION_IDLE, false);
 }
 
 bool ImpulseCover::get_sensor_state_(binary_sensor::BinarySensor *sensor, bool inverted) {
