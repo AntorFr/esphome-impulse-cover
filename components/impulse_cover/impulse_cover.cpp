@@ -395,14 +395,14 @@ void ImpulseCover::send_pulse_internal_(bool double_pulse) {
     // First pulse
     ESP_LOGD(TAG, "Turning output ON (first pulse)");
     this->output_->turn_on();
-    this->set_timeout(100, [this]() { 
+    this->set_timeout("double_pulse_first_off", 100, [this]() { 
       ESP_LOGD(TAG, "Turning output OFF (after first pulse)");
       this->output_->turn_off();
       // Second pulse after a short delay
-      this->set_timeout(200, [this]() {
+      this->set_timeout("double_pulse_second_on", 200, [this]() {
         ESP_LOGD(TAG, "Turning output ON (second pulse)");
         this->output_->turn_on();
-        this->set_timeout(100, [this]() { 
+        this->set_timeout("double_pulse_second_off", 100, [this]() { 
           ESP_LOGD(TAG, "Turning output OFF (after second pulse)");
           this->output_->turn_off(); 
         });
@@ -413,7 +413,8 @@ void ImpulseCover::send_pulse_internal_(bool double_pulse) {
     
     ESP_LOGD(TAG, "Turning output ON");
     this->output_->turn_on();
-    this->set_timeout(100, [this]() { 
+    ESP_LOGD(TAG, "Setting timeout for output OFF in 100ms");
+    this->set_timeout("single_pulse_off", 100, [this]() { 
       ESP_LOGD(TAG, "Turning output OFF");
       this->output_->turn_off(); 
     });
