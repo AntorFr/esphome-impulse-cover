@@ -127,6 +127,16 @@ cover::CoverTraits ImpulseCover::get_traits() {
 }
 
 void ImpulseCover::control(const cover::CoverCall &call) {
+  ESP_LOGD(TAG, "control() called - stop: %s, toggle: %s, position: %s", 
+           call.get_stop() ? "true" : "false",
+           call.get_toggle().has_value() ? "true" : "false",
+           call.get_position().has_value() ? "true" : "false");
+  
+  if (call.get_position().has_value()) {
+    ESP_LOGD(TAG, "Position command: %.3f (current: %.3f)", 
+             *call.get_position(), this->position);
+  }
+  
   if (this->safety_triggered_) {
     ESP_LOGW(TAG, "Cover is in safety mode, ignoring command");
     return;
@@ -174,6 +184,9 @@ void ImpulseCover::control(const cover::CoverCall &call) {
 
 // Main control methods based on impulse cover logic
 void ImpulseCover::start_direction_(cover::CoverOperation dir) {
+  ESP_LOGD(TAG, "start_direction_ called with dir=%d, safety_triggered_=%s", 
+           static_cast<int>(dir), this->safety_triggered_ ? "true" : "false");
+  
   if (this->safety_triggered_) {
     ESP_LOGW(TAG, "Cannot start movement: safety triggered");
     return;
@@ -182,6 +195,10 @@ void ImpulseCover::start_direction_(cover::CoverOperation dir) {
   // Determine what type of pulse to send based on current state and desired operation
   bool send_pulse = false;
   bool send_double_pulse = false;
+  
+  ESP_LOGD(TAG, "Current position: %.3f, target: %.3f, current_operation: %d, last_operation_: %d", 
+           this->position, this->target_position_, 
+           static_cast<int>(this->current_operation), static_cast<int>(this->last_operation_));
   
   if (dir == COVER_OPERATION_IDLE) {
     // Stop command
@@ -232,6 +249,9 @@ void ImpulseCover::start_direction_(cover::CoverOperation dir) {
   }
 
   // Execute the appropriate pulse sequence
+  ESP_LOGD(TAG, "Pulse decision: send_pulse=%s, send_double_pulse=%s", 
+           send_pulse ? "true" : "false", send_double_pulse ? "true" : "false");
+  
   if (send_double_pulse) {
     this->send_double_pulse_();
     this->safety_cycle_count_ += 2;  // Double pulse counts as 2 cycles
@@ -341,9 +361,21 @@ void ImpulseCover::send_double_pulse_() {
 }
 
 void ImpulseCover::send_pulse_internal_(bool double_pulse) {
-  if (this->output_ == nullptr || this->pulse_sent_) return;
+  ESP_LOGD(TAG, "send_pulse_internal_ called with double_pulse=%s", double_pulse ? "true" : "false");
+  
+  if (this->output_ == nullptr) {
+    ESP_LOGE(TAG, "Output is null! Cannot send pulse");
+    return;
+  }
+  
+  if (this->pulse_sent_) {
+    ESP_LOGD(TAG, "Pulse already sent, skipping");
+    return;
+  }
   
   const uint32_t now = millis();
+  ESP_LOGD(TAG, "Current time: %u, last_pulse_time_: %u, pulse_delay_: %u", 
+           now, this->last_pulse_time_, this->pulse_delay_);
   
   // Check if enough time has passed since last pulse
   if ((now - this->last_pulse_time_) < this->pulse_delay_) {
@@ -361,24 +393,35 @@ void ImpulseCover::send_pulse_internal_(bool double_pulse) {
     ESP_LOGD(TAG, "Sending double control pulse");
     
     // First pulse
+    ESP_LOGD(TAG, "Turning output ON (first pulse)");
     this->output_->turn_on();
     this->set_timeout(100, [this]() { 
+      ESP_LOGD(TAG, "Turning output OFF (after first pulse)");
       this->output_->turn_off();
       // Second pulse after a short delay
       this->set_timeout(200, [this]() {
+        ESP_LOGD(TAG, "Turning output ON (second pulse)");
         this->output_->turn_on();
-        this->set_timeout(100, [this]() { this->output_->turn_off(); });
+        this->set_timeout(100, [this]() { 
+          ESP_LOGD(TAG, "Turning output OFF (after second pulse)");
+          this->output_->turn_off(); 
+        });
       });
     });
   } else {
-    ESP_LOGD(TAG, "Sending control pulse");
+    ESP_LOGD(TAG, "Sending single control pulse");
     
+    ESP_LOGD(TAG, "Turning output ON");
     this->output_->turn_on();
-    this->set_timeout(100, [this]() { this->output_->turn_off(); });
+    this->set_timeout(100, [this]() { 
+      ESP_LOGD(TAG, "Turning output OFF");
+      this->output_->turn_off(); 
+    });
   }
   
   this->last_pulse_time_ = millis();
   this->pulse_sent_ = true;
+  ESP_LOGD(TAG, "Pulse sequence initiated, pulse_sent_ set to true");
 }
 
 void ImpulseCover::check_safety_() {
