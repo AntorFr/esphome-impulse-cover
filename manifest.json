@@ -1,7 +1,7 @@
 {
   "name": "Impulse Cover",
   "description": "ESPHome component for single-pulse cover control systems",
-  "version": "1.0.0",
+  "version": "1.1.0-rc1",
   "author": "ESPHome Community",
   "license": "MIT",
   "repository": "https://github.com/AntorFr/esphome-impulse-cover",
