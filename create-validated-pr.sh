@@ -334,10 +334,13 @@ generate_pr_content() {
     fi
     
     # Générer la description automatiquement
+    local upper_release_type
+    upper_release_type=$(echo "$release_type" | tr '[:lower:]' '[:upper:]')
+    
     AUTO_BODY="# 🚀 ESPHome Impulse Cover - Release $(date '+%Y.%m.%d')
 
 ## 📈 Release Summary
-- **Release Type**: ${release_type^^} release
+- **Release Type**: ${upper_release_type} release
 - **Component Files Changed**: $component_changes
 - **Configuration Examples Updated**: $config_changes  
 - **Documentation Changes**: $doc_changes
