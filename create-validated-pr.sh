@@ -463,17 +463,24 @@ print_section "🚀 PHASE 4: CRÉATION DE LA PULL REQUEST"
 if [ "$CREATE_VERSION" = true ] && [ -n "$NEW_VERSION" ]; then
     print_subsection "📦 Mise à jour de la version"
     
-    # Mettre à jour le manifest
-    update_manifest_version "$NEW_VERSION"
+    # Vérifier si la version locale est différente de la nouvelle version
+    local_version=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "0.0.0")
     
-    # Committer les changements de version
-    git add manifest.json
-    git commit -m "chore: Bump version to $NEW_VERSION
+    if [ "$local_version" != "$NEW_VERSION" ]; then
+        # Mettre à jour le manifest
+        update_manifest_version "$NEW_VERSION"
+        
+        # Committer les changements de version
+        git add manifest.json
+        git commit -m "chore: Bump version to $NEW_VERSION
 
 - Update manifest.json with new version
 - Ready for release tagging"
-    
-    echo -e "${GREEN}✅ Version mise à jour et commitée${NC}"
+        
+        echo -e "${GREEN}✅ Version mise à jour et commitée${NC}"
+    else
+        echo -e "${YELLOW}ℹ️ Version déjà à jour dans le manifest local${NC}"
+    fi
 fi
 
 # Push des derniers changements
