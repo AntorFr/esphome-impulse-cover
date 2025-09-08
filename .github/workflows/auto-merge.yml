@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: 🔍 Check PR status
         id: pr-status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: pr } = await github.rest.pulls.get({
@@ -40,7 +40,7 @@ jobs:
 
       - name: 🤖 Enable auto-merge
         if: steps.pr-status.outputs.result == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             // Attendre que tous les checks soient terminés
@@ -72,7 +72,7 @@ jobs:
             }
 
       - name: 📝 Comment PR status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const comment = `🤖 **Auto-merge Status**
