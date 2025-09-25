@@ -430,28 +430,22 @@ void ImpulseCover::send_pulse_internal_(bool double_pulse) {
 }
 
 void ImpulseCover::check_safety_() {
-  if (this->current_operation == COVER_OPERATION_IDLE) {
-    return;
-  }
-  
-  // Check cycle count safety
-  if (this->safety_cycle_count_ >= this->safety_max_cycles_) {
-    ESP_LOGW(TAG, "Safety max cycles triggered (%u cycles)", this->safety_cycle_count_);
+  // Check failure count safety
+  if (this->safety_failure_count_ >= this->safety_max_cycles_) {
+    ESP_LOGE(TAG, "Safety triggered: %u sensor confirmation failures", this->safety_failure_count_);
     this->safety_triggered_ = true;
+    this->awaiting_sensor_confirmation_ = false;
     this->fire_on_safety_triggers_();
-    this->start_direction_(COVER_OPERATION_IDLE);
     return;
   }
   
-  // Auto-reset safety cycle count after period of inactivity
-  const uint32_t now = millis();
-  if (this->current_operation == COVER_OPERATION_IDLE && 
-      this->safety_cycle_count_ > 0 && 
-      (now - this->start_dir_time_) > 30000) {
-    ESP_LOGV(TAG, "Auto-resetting safety cycle count after inactivity");
-    this->safety_cycle_count_ = 0;
+  ESP_LOGV(TAG, "Safety check: failures=%u/%u, triggered=%s, awaiting_sensor=%s", 
+           this->safety_failure_count_, this->safety_max_cycles_,
+           this->safety_triggered_ ? "YES" : "NO",
+           this->awaiting_sensor_confirmation_ ? "YES" : "NO");
   }
-}
+
+
 
 #ifdef USE_BINARY_SENSOR
 void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
