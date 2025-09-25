@@ -41,7 +41,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
             cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_PULSE_DELAY, default="500ms"): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_SAFETY_TIMEOUT, default="60s"): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SAFETY_TIMEOUT, default="5s"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SAFETY_MAX_CYCLES, default=5): cv.int_range(min=1, max=20),
             cv.Optional(CONF_OPEN_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_CLOSE_SENSOR): cv.use_id(binary_sensor.BinarySensor),

@@ -84,10 +84,7 @@ void ImpulseCover::loop() {
         ESP_LOGV(TAG, "Final position target - no stop pulse needed");
         this->set_current_operation_(COVER_OPERATION_IDLE, false);
       }
-    } else if (now - this->start_dir_time_ > this->safety_timeout_) {
-      ESP_LOGW(TAG, "Safety timeout reached, stopping movement");
-      this->set_current_operation_(COVER_OPERATION_IDLE, false);
-    }
+    } 
   }
   
   // Publish state at regular intervals
