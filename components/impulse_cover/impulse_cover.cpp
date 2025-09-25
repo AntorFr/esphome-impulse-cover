@@ -258,21 +258,34 @@ void ImpulseCover::start_direction_(cover::CoverOperation dir) {
   
   if (send_double_pulse) {
     this->send_double_pulse_();
-    this->safety_cycle_count_ += 2;  // Double pulse counts as 2 cycles
   } else if (send_pulse) {
     this->send_pulse_();
-    this->safety_cycle_count_++;
   }
 
   // Update operation state
   this->set_current_operation_(dir, true);
   
-  // Log and fire triggers
+  // Configure sensor-based safety monitoring
   if (dir != COVER_OPERATION_IDLE) {
-    ESP_LOGI(TAG, "Starting %s operation to %.2f (cycle %u/%u)", 
-             dir == COVER_OPERATION_OPENING ? "OPEN" : "CLOSE",
-             this->target_position_,
-             this->safety_cycle_count_, this->safety_max_cycles_);
+    const char* direction_str = (dir == COVER_OPERATION_OPENING) ? "OPEN" : "CLOSE";
+    
+#ifdef USE_BINARY_SENSOR
+    // Check if target position has a sensor for monitoring
+    bool has_sensor = (dir == COVER_OPERATION_OPENING && this->open_sensor_ != nullptr) ||
+                      (dir == COVER_OPERATION_CLOSING && this->close_sensor_ != nullptr);
+    
+    if (has_sensor) {
+      this->awaiting_sensor_confirmation_ = true;
+      this->expected_operation_ = dir;
+    }
+    
+    ESP_LOGI(TAG, "Starting %s operation to %.2f (%s)", 
+             direction_str, this->target_position_,
+             has_sensor ? "with sensor monitoring" : "no sensor monitoring");
+#else
+    ESP_LOGI(TAG, "Starting %s operation to %.2f (no sensor support)", 
+             direction_str, this->target_position_);
+#endif
              
     // Fire appropriate triggers
     if (dir == COVER_OPERATION_OPENING) {
@@ -443,7 +456,7 @@ void ImpulseCover::check_safety_() {
            this->safety_failure_count_, this->safety_max_cycles_,
            this->safety_triggered_ ? "YES" : "NO",
            this->awaiting_sensor_confirmation_ ? "YES" : "NO");
-  }
+}
 
 
 
@@ -563,6 +576,47 @@ void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
     ESP_LOGV(TAG, "No sensors configured - keeping current position: %.2f", this->position);
   }
   
+  // Check if sensor confirms expected position for safety system
+  if (!is_initialization && this->awaiting_sensor_confirmation_) {
+    bool has_expected_sensor = false;
+    bool sensor_confirms_expected = false;
+    
+    if (this->expected_operation_ == COVER_OPERATION_OPENING && this->open_sensor_ != nullptr) {
+      has_expected_sensor = true;
+      sensor_confirms_expected = open_sensor_active;
+    } else if (this->expected_operation_ == COVER_OPERATION_CLOSING && this->close_sensor_ != nullptr) {
+      has_expected_sensor = true;
+      sensor_confirms_expected = close_sensor_active;
+    }
+    
+    if (has_expected_sensor) {
+      if (sensor_confirms_expected) {
+        // Success - sensor confirms expected position
+        ESP_LOGI(TAG, "Sensor confirms expected position - resetting safety system");
+        this->safety_failure_count_ = 0;  // Reset complete à 0
+        this->safety_triggered_ = false;   // Déblocage sécurité
+        this->awaiting_sensor_confirmation_ = false;
+        ESP_LOGI(TAG, "Safety system reset: failure count cleared, safety unblocked");
+      } else {
+        // Failure - sensor timeout: expected position not confirmed
+        this->safety_failure_count_++;
+        this->awaiting_sensor_confirmation_ = false;
+        
+        ESP_LOGW(TAG, "Sensor timeout: Expected position not confirmed (failure %u/%u)", 
+                 this->safety_failure_count_, this->safety_max_cycles_);
+        
+        if (this->safety_failure_count_ >= this->safety_max_cycles_) {
+          ESP_LOGE(TAG, "Safety failure threshold reached - system will be blocked");
+        }
+      }
+    } else {
+      // No sensor to monitor - just clear the waiting state without penalty
+      this->awaiting_sensor_confirmation_ = false;
+      ESP_LOGV(TAG, "No sensor to monitor for %s operation - clearing wait state", 
+               this->expected_operation_ == COVER_OPERATION_OPENING ? "OPEN" : "CLOSE");
+    }
+  }
+  
   if (!is_initialization) {
     if (position_updated) {
       ESP_LOGI(TAG, "Position corrected based on sensor feedback");
@@ -576,6 +630,8 @@ void ImpulseCover::update_position_from_sensors_(bool is_initialization) {
 void ImpulseCover::check_sensor_alignment_() {
   ESP_LOGV(TAG, "Checking sensor alignment with current position...");
   ESP_LOGV(TAG, "Current position: %.3f", this->position);
+  
+  // Regular sensor alignment check (includes safety timeout logic)  
   this->update_position_from_sensors_(false);
 }
 

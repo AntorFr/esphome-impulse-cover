@@ -34,7 +34,11 @@ class ImpulseCover : public cover::Cover, public Component {
   void set_safety_max_cycles(uint8_t cycles) { this->safety_max_cycles_ = cycles; }
   
   // Safety control
-  void reset_safety_mode() { this->safety_triggered_ = false; this->safety_cycle_count_ = 0; }
+  void reset_safety_mode() { 
+    this->safety_triggered_ = false; 
+    this->safety_failure_count_ = 0;
+    this->awaiting_sensor_confirmation_ = false;
+  }
   bool is_safety_triggered() const { return this->safety_triggered_; }
   
   void set_output(output::BinaryOutput *output) { this->output_ = output; }
@@ -100,7 +104,10 @@ class ImpulseCover : public cover::Cover, public Component {
 #endif
   bool pulse_sent_{false};
   bool safety_triggered_{false};
-  uint8_t safety_cycle_count_{0};
+  uint8_t safety_failure_count_{0};        // Compteur d'échecs de capteurs
+  bool awaiting_sensor_confirmation_{false}; // En attente de confirmation capteur
+  uint32_t sensor_timeout_time_{0};        // Moment du timeout capteur
+  cover::CoverOperation expected_operation_{cover::COVER_OPERATION_IDLE}; // Opération attendue
   
   // Position calculation
   float target_position_{0};
